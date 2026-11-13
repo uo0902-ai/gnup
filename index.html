@@ -1,1133 +1,1764 @@
 <!DOCTYPE html>
+<!--
+====================================================================
+[버전 업데이트 필수 체크리스트] 앞으로 버전 업 시 아래 3곳을 모두 동일하게 올릴 것!
+  1. HTML 상단 주석 버전 표기 (현재: v1.5)
+  2. 하단 고정 <footer> 내 #footer-version-text 텍스트 (현재: 앱버전 v1.5)
+  3. <script> 최상단 const APP_VERSION 상수 값 (현재: 'v1.5')
+====================================================================
+-->
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#2563eb" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>계남중 파일업다운</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&display=swap');
-    body {
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-      background-color: #f4f6fb;
-      -webkit-tap-highlight-color: transparent;
-      overscroll-behavior-y: contain;
-    }
-    @keyframes pulse-ring {
-      0% { transform: scale(0.85); opacity: 0.7; }
-      100% { transform: scale(1.85); opacity: 0; }
-    }
-    .radar-ring {
-      animation: pulse-ring 2.4s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-    }
-    .custom-scroll::-webkit-scrollbar { width: 5px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#3730a3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="계남중 파일업다운">
+    <title>계남중 파일업다운</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard', 'Noto Sans KR', 'sans-serif'],
+                    },
+                    animation: {
+                        'radar-ping': 'radarPing 2.4s cubic-bezier(0, 0, 0.2, 1) infinite',
+                        'radar-ping-delayed': 'radarPing 2.4s cubic-bezier(0, 0, 0.2, 1) 1.2s infinite',
+                        'float': 'float 3s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        radarPing: {
+                            '0%': { transform: 'scale(0.6)', opacity: '0.8' },
+                            '100%': { transform: 'scale(2.2)', opacity: '0' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-4px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        body {
+            background-color: #f1f5f9;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-start sm:justify-center p-0 sm:p-4 text-slate-800">
+<body class="min-h-screen flex flex-col items-center justify-center bg-slate-100 font-sans text-slate-800">
 
-  <!-- 강제 업데이트 잠금 오버레이 (구버전 차단) -->
-  <div id="forceUpdateModal" class="hidden fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-5">
-    <div class="bg-white w-full max-w-sm rounded-[28px] p-6 text-center shadow-2xl space-y-4">
-      <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/30">
-        <i data-lucide="sparkles" class="w-7 h-7"></i>
-      </div>
-      <div>
-        <span class="inline-block text-[11px] font-extrabold bg-rose-100 text-rose-600 px-2.5 py-0.5 rounded-full mb-1.5">필수 업데이트 안내</span>
-        <h2 class="text-xl font-extrabold text-slate-900">새 버전(<span id="latestVersionText">v1.5</span>)이 출시되었습니다</h2>
-        <p id="updateNoteText" class="text-xs text-slate-500 mt-2 leading-relaxed">
-          원활한 파일 송수신과 연결 안정성을 위해 최신 버전으로 업데이트해야 계속 사용할 수 있습니다.
-        </p>
-      </div>
-      <button onclick="applyForceUpdate()" class="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-lg shadow-blue-600/25 transition">
-        지금 업데이트하고 계속하기
-      </button>
-    </div>
-  </div>
+    <!-- 모바일 퍼스트 웹앱 메인 컨테이너 -->
+    <div id="webapp-shell" class="relative w-full max-w-md min-h-screen sm:min-h-[840px] sm:max-h-[94vh] sm:my-3 bg-white sm:rounded-[32px] sm:shadow-2xl sm:border sm:border-slate-200/80 overflow-hidden flex flex-col">
 
-  <!-- 토스트 알림 -->
-  <div id="toast" class="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 bg-slate-900/95 text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-xl whitespace-nowrap">
-    알림 메시지
-  </div>
-
-  <!-- 메인 앱 프레임 -->
-  <div class="w-full max-w-[440px] bg-[#f8f9fc] sm:rounded-[34px] shadow-2xl min-h-screen sm:min-h-[780px] flex flex-col justify-between overflow-hidden border border-slate-200/80">
-
-    <!-- ========================================== -->
-    <!-- 1. 로그인 / 방 접속 화면 (원본 디자인) -->
-    <!-- ========================================== -->
-    <div id="loginScreen" class="flex-1 flex flex-col justify-between p-6">
-      <!-- 상단 배지 & 홈 화면 설치 버튼 -->
-      <div class="flex items-center justify-between pt-1">
-        <span class="bg-indigo-100/90 text-indigo-600 text-xs font-extrabold px-3.5 py-1.5 rounded-full">
-          PC · 모바일 공용
-        </span>
-        <button id="installBtnLogin" onclick="promptInstall()" class="bg-slate-950 hover:bg-slate-800 text-white text-xs font-extrabold px-4 py-2 rounded-full shadow-sm transition">
-          홈 화면에 앱 설치
-        </button>
-      </div>
-
-      <!-- 중앙 브랜드 로고 & 타이틀 -->
-      <div class="text-center my-6">
-        <div class="w-16 h-16 mx-auto rounded-[20px] bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/30 flex items-center justify-center text-white mb-4">
-          <i data-lucide="send" class="w-7 h-7"></i>
-        </div>
-        <h1 class="text-[26px] font-black text-slate-900 tracking-tight">계남중 파일업다운</h1>
-        <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
-          이름과 4자리 숫자 코드를 입력하면<br/>
-          스마트폰과 컴퓨터 간 즉시 파일을 주고받습니다.
-        </p>
-      </div>
-
-      <!-- 입력 카드 박스 -->
-      <div class="bg-white rounded-[28px] p-5 shadow-sm border border-slate-100 space-y-4">
-        <div>
-          <label class="block text-xs font-extrabold text-slate-700 mb-1.5">내 이름 (닉네임)</label>
-          <input id="inputName" type="text" maxlength="12" placeholder="예: 김계남 (나)"
-            class="w-full px-4 py-3.5 rounded-2xl bg-indigo-50/70 border border-transparent focus:border-blue-400 focus:bg-white text-sm font-extrabold text-slate-900 focus:outline-none transition" />
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <label class="text-xs font-extrabold text-slate-700">4자리 숫자 코드</label>
-            <button type="button" onclick="generateRandomCode()" class="text-xs font-extrabold text-indigo-600 hover:underline">
-              랜덤 코드 생성
-            </button>
-          </div>
-          <input id="inputCode" type="tel" inputmode="numeric" maxlength="4" placeholder="1234"
-            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
-            class="w-full py-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 focus:border-blue-500 focus:bg-white text-2xl font-black text-indigo-600 tracking-[0.45em] text-center focus:outline-none transition" />
-        </div>
-
-        <div class="pt-1 flex items-center justify-between border-t border-slate-100">
-          <div>
-            <p class="text-xs font-extrabold text-slate-800">백그라운드 세션 자동 유지</p>
-            <p class="text-[11px] text-slate-400 mt-0.5">뒤로가기 및 새로고침 시에도 접속 유지</p>
-          </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input id="keepSessionToggle" type="checkbox" checked class="sr-only peer" />
-            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-          </label>
-        </div>
-      </div>
-
-      <!-- 접속하기 버튼 -->
-      <div class="mt-6 mb-2">
-        <button onclick="joinRoom()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] text-white font-extrabold text-base shadow-lg shadow-blue-600/30 transition">
-          조원 탐색 및 방 접속하기
-        </button>
-      </div>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- 2. 접속 완료 메인 화면 (원본 디자인) -->
-    <!-- ========================================== -->
-    <div id="mainScreen" class="hidden flex-1 flex flex-col">
-      <!-- 상단 블루 그라데이션 헤더 -->
-      <div class="bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 text-white p-5 rounded-b-[28px] shadow-md">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
-              <i data-lucide="send" class="w-4 h-4 text-white"></i>
+        <!-- 업데이트 알림 배너 (새 버전 감지 시 표시) -->
+        <div id="update-banner" class="hidden bg-amber-400 text-slate-950 px-4 py-2.5 flex items-center justify-between gap-2 text-xs font-extrabold z-30 shadow-sm shrink-0">
+            <div class="flex items-center gap-1.5 min-w-0">
+                <i data-lucide="sparkles" class="w-4 h-4 shrink-0"></i>
+                <span id="update-banner-text" class="truncate">새로운 버전이 준비되었습니다!</span>
             </div>
-            <span class="font-extrabold text-base tracking-tight">계남중 파일업다운</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <button id="installBtnMain" onclick="promptInstall()" class="flex items-center gap-1 text-xs font-bold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-xl transition">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i>
-              <span>앱 설치</span>
+            <button onclick="applyAppUpdate()" class="px-3 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 shrink-0 transition active:scale-95">
+                지금 업데이트
             </button>
-            <button onclick="leaveRoom()" class="flex items-center gap-1 text-xs font-bold bg-white/15 hover:bg-rose-500/80 px-3 py-1.5 rounded-xl transition">
-              <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-              <span>방 나가기</span>
-            </button>
-          </div>
         </div>
 
-        <!-- 내 프로필 & 노란색 이름/코드 변경 바 -->
-        <div class="mt-4 bg-blue-950/35 backdrop-blur-xs rounded-2xl p-3 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span id="displayCodeBadge" class="shrink-0 bg-blue-500/60 text-white font-extrabold text-xs px-2.5 py-1 rounded-full tracking-wider">
-              #1234
-            </span>
-            <span id="displayMyName" class="font-extrabold text-sm truncate">김계남 (나)</span>
-          </div>
-          <button onclick="openEditModal()" class="shrink-0 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow flex items-center gap-1 transition">
-            <i data-lucide="user-pen" class="w-3.5 h-3.5"></i>
-            <span>이름/코드 변경</span>
-          </button>
-        </div>
-
-        <div class="mt-2.5 flex items-center justify-between text-[11px] text-blue-100 px-1 font-medium">
-          <span>접속 유지됨 (뒤로가기 시 로그아웃 방지)</span>
-          <span id="connectionStatus" class="font-bold text-white">실시간 동기화</span>
-        </div>
-      </div>
-
-      <!-- 본문 카드 영역 -->
-      <div class="flex-1 p-4 space-y-4 overflow-y-auto custom-scroll">
-
-        <!-- 주변 조원 기기 카드 -->
-        <div class="bg-white rounded-[26px] p-4 shadow-xs border border-slate-100">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <h2 class="font-extrabold text-sm text-slate-900">주변 조원 기기</h2>
-              <span id="peerCountBadge" class="text-[11px] font-extrabold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">
-                0명 연결됨
-              </span>
-            </div>
-            <button onclick="reconnectPeers()" class="text-xs font-extrabold text-blue-600 hover:text-blue-800 flex items-center gap-1">
-              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-              <span>재탐색</span>
-            </button>
-          </div>
-
-          <div class="bg-slate-50/90 border border-slate-200/70 rounded-2xl p-3.5">
-            <p class="text-[11px] text-center text-slate-500 font-semibold mb-3">
-              코드 <span id="waitingCodeText" class="text-indigo-600 font-extrabold">#1234</span> 로 접속한 조원 (터치하여 수신 대상 선택)
-            </p>
-
-            <!-- 조원 없을 때 대기 안내 -->
-            <div id="emptyPeersBox" class="py-6 text-center relative overflow-hidden">
-              <div class="relative w-11 h-11 mx-auto mb-2 flex items-center justify-center">
-                <span class="radar-ring absolute inset-0 rounded-full bg-blue-400/30"></span>
-                <span class="relative w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                  <i data-lucide="radio" class="w-4 h-4"></i>
+        <!-- ========================================== -->
+        <!-- 화면 A: 초기 접속 화면 (로그인/세션 시작)    -->
+        <!-- ========================================== -->
+        <div id="login-screen" class="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-indigo-50/80 via-white to-slate-50 overflow-y-auto no-scrollbar">
+            
+            <!-- 상단 PWA 설치 바 -->
+            <div class="flex items-center justify-between">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-extrabold">
+                    <i data-lucide="wifi" class="w-3.5 h-3.5"></i> PWA SHARE
                 </span>
-              </div>
-              <p class="text-xs font-bold text-slate-600">접속한 조원을 기다리는 중입니다...</p>
-              <p class="text-[11px] text-slate-400 mt-0.5">스마트폰 또는 PC로 같은 코드를 입력하면 바로 표시됩니다.</p>
+                <button onclick="triggerPwaInstall()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-xs transition active:scale-95">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    <span>홈 화면에 앱 설치</span>
+                </button>
             </div>
 
-            <!-- 실제 접속 조원 3열 그리드 -->
-            <div id="peersGrid" class="hidden grid grid-cols-3 gap-2.5"></div>
-          </div>
-        </div>
-
-        <!-- 파일 보내기 카드 -->
-        <div class="bg-white rounded-[26px] p-4 shadow-xs border border-slate-100 space-y-3">
-          <div class="flex items-center justify-between">
-            <h2 class="font-extrabold text-sm text-slate-900">파일 보내기</h2>
-            <span id="targetLabel" class="text-[11px] font-extrabold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full">
-              전체 조원 (0명)에게 전송
-            </span>
-          </div>
-
-          <!-- 제미나이 폴더 안내 및 파일 선택 버튼 -->
-          <button onclick="openFileModal()" class="w-full bg-indigo-50/70 hover:bg-indigo-100/70 border border-indigo-200/80 rounded-2xl p-3.5 flex items-center justify-between transition text-left group">
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                <i data-lucide="folder" class="w-5 h-5"></i>
-              </div>
-              <div class="min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-extrabold text-sm text-slate-900">파일 선택 및 업로드</span>
-                  <span class="text-[10px] font-extrabold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">최신순</span>
+            <!-- 중앙 앱 타이틀 -->
+            <div class="my-4 text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-200 mb-4 animate-float">
+                    <i data-lucide="send" class="w-8 h-8"></i>
                 </div>
-                <p class="text-[11px] text-indigo-600 font-semibold truncate mt-0.5">
-                  /Internal Storage/Download/Gemini/
+                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">계남중 파일업다운</h1>
+                <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    이름과 4자리 숫자 코드를 입력하면<br>같은 방 조원들과 즉시 파일을 주고받을 수 있습니다.
                 </p>
-              </div>
             </div>
-            <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-2xs shrink-0">
-              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+
+            <!-- 접속 정보 입력 카드 -->
+            <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200/70 space-y-4">
+                <div>
+                    <label class="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5 ml-1">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-indigo-600"></i> 내 이름 (닉네임)
+                    </label>
+                    <input type="text" id="input-nickname" maxlength="12" placeholder="예: 3학년2반 김계남" value="김계남 (나)"
+                        class="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1.5 ml-1">
+                        <label class="flex items-center gap-1 text-xs font-bold text-slate-700">
+                            <i data-lucide="hash" class="w-3.5 h-3.5 text-indigo-600"></i> 4자리 숫자 코드
+                        </label>
+                        <button type="button" onclick="generateRandomCode()" class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:underline">
+                            <i data-lucide="shuffle" class="w-3 h-3"></i> 랜덤 코드 생성
+                        </button>
+                    </div>
+                    <input type="tel" id="input-room-code" maxlength="4" placeholder="0000" value="1234"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
+                        class="w-full px-4 py-3.5 rounded-2xl bg-indigo-50/70 border-2 border-indigo-200 text-center text-2xl font-extrabold tracking-[0.5em] text-indigo-700 focus:outline-none focus:border-indigo-600 focus:bg-white transition">
+                </div>
+
+                <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div>
+                        <p class="text-xs font-bold text-slate-800">백그라운드 세션 자동 유지</p>
+                        <p class="text-[11px] text-slate-400">뒤로가기 및 새로고침 시에도 접속 유지</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="toggle-session-keep" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
             </div>
-          </button>
 
-          <input id="realFileInput" type="file" multiple class="hidden" onchange="handleRealFileSelect(event)" />
+            <!-- 하단 접속 버튼 및 외부 공유 수신 테스트 -->
+            <div class="mt-4 space-y-2">
+                <button onclick="joinRoom()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white font-bold text-base shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
+                    <span>조원 탐색 및 방 접속하기</span>
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center justify-center gap-3 pt-1">
+                    <button type="button" onclick="simulateExternalShareIncoming()" class="text-[11px] font-bold text-indigo-600 hover:underline flex items-center gap-1">
+                        <i data-lucide="share" class="w-3 h-3"></i> 외부 앱 공유 수신 테스트
+                    </button>
+                </div>
+            </div>
+        </div>
 
-          <!-- 외부 앱 공유 수신 테스트 버튼 -->
-          <button type="button" onclick="testWebShareReceive()" class="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition">
-            <i data-lucide="upload" class="w-3.5 h-3.5 text-slate-500"></i>
-            <span>외부 앱 공유 수신 테스트</span>
-          </button>
+        <!-- ========================================== -->
+        <!-- 화면 B: 메인 파일 공유 웹앱 화면 (접속 후)   -->
+        <!-- ========================================== -->
+        <div id="main-screen" class="hidden flex-1 flex flex-col bg-slate-50 overflow-hidden">
+            
+            <!-- 상단 헤더 -->
+            <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 pt-4 pb-4 rounded-b-3xl shadow-md z-20 shrink-0">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
+                            <i data-lucide="send" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <span class="font-extrabold text-base tracking-tight">계남중 파일업다운</span>
+                    </div>
 
-          <!-- 빠른 텍스트/링크 전송 -->
-          <form onsubmit="sendTextMessage(event)" class="flex gap-2">
-            <input id="quickTextInput" type="text" placeholder="조원에게 빠른 텍스트 메모/링크 보내기..."
-              class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white" />
-            <button type="submit" class="shrink-0 bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl flex items-center gap-1 transition">
-              <i data-lucide="send" class="w-3.5 h-3.5"></i>
-              <span>전송</span>
+                    <div class="flex items-center gap-1.5">
+                        <!-- PWA 설치 버튼 -->
+                        <button onclick="triggerPwaInstall()" title="홈 화면에 앱 설치" class="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold transition flex items-center gap-1">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span>앱 설치</span>
+                        </button>
+                        <!-- 명시적 방 나가기(로그아웃) 버튼 -->
+                        <button onclick="confirmLeaveRoom()" title="방 나가기(로그아웃)" class="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-rose-500 text-white text-[11px] font-bold transition flex items-center gap-1">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+                            <span>방 나가기</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 접속 정보 표시 및 실시간 '이름/코드 변경' 버튼 -->
+                <div class="flex items-center justify-between bg-indigo-950/35 backdrop-blur-xs rounded-2xl px-3 py-2 border border-white/10 gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="bg-white/20 px-2.5 py-1 rounded-xl text-xs font-extrabold tracking-wider flex items-center gap-1 shrink-0">
+                            <i data-lucide="hash" class="w-3 h-3 text-amber-300"></i>
+                            <span id="display-room-code">1234</span>
+                        </span>
+                        <span id="display-nickname" class="font-bold text-sm truncate">김계남 (나)</span>
+                    </div>
+
+                    <button onclick="openEditProfileModal()" class="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 text-xs font-extrabold transition flex items-center gap-1 shrink-0 shadow-xs">
+                        <i data-lucide="user-pen" class="w-3.5 h-3.5"></i>
+                        <span>이름/코드 변경</span>
+                    </button>
+                </div>
+
+                <!-- 세션 유지 상태 안내 -->
+                <div class="flex items-center justify-between mt-2.5 px-1 text-[11px] text-indigo-100">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span class="font-medium text-emerald-200">접속 유지됨 (뒤로가기 시 로그아웃 방지)</span>
+                    </div>
+                    <span id="sync-mode-badge" class="font-bold text-white/85">실시간 동기화</span>
+                </div>
+            </header>
+
+            <!-- 메인 스크롤 영역 -->
+            <main class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+                
+                <!-- 1. 주변 조원 기기 레이더 탐색 -->
+                <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-1.5">
+                            <h2 class="text-sm font-extrabold text-slate-800">주변 조원 기기</h2>
+                            <span id="peer-count-badge" class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold">0명 연결됨</span>
+                        </div>
+                        <button onclick="rescanPeers()" class="text-xs text-indigo-600 font-bold hover:bg-indigo-50 px-2.5 py-1 rounded-xl transition flex items-center gap-1">
+                            <i id="scan-icon" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>재탐색</span>
+                        </button>
+                    </div>
+
+                    <div class="relative bg-gradient-to-b from-slate-50 to-indigo-50/50 rounded-2xl p-3 border border-indigo-100/70 overflow-hidden">
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
+                            <div class="w-24 h-24 rounded-full border border-indigo-400 animate-radar-ping"></div>
+                            <div class="w-24 h-24 rounded-full border border-blue-400 animate-radar-ping-delayed absolute"></div>
+                        </div>
+
+                        <p class="text-[11px] text-slate-500 text-center mb-2.5 relative z-10">
+                            코드 <strong id="radar-code-label" class="text-indigo-700">#1234</strong> 로 접속한 조원 (터치하여 수신 대상 선택)
+                        </p>
+
+                        <div id="peers-container" class="grid grid-cols-3 gap-2 relative z-10">
+                            <!-- JS 동적 렌더링 -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 파일 보내기 (제미나이 다운로드 폴더 기본 경로 & 최신순 정렬) -->
+                <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h2 class="text-sm font-extrabold text-slate-800">파일 보내기</h2>
+                        <span id="selected-target-label" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg">
+                            전송 대상을 선택해주세요
+                        </span>
+                    </div>
+
+                    <!-- 제미나이 폴더 기본 접근 버튼 -->
+                    <button onclick="openGeminiFolderPicker()" class="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 border-2 border-indigo-200 hover:border-indigo-400 transition group text-left">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition">
+                                <i data-lucide="folder-open" class="w-5 h-5"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs font-extrabold text-slate-900">파일 선택 및 업로드</span>
+                                    <span class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold">최신순</span>
+                                </div>
+                                <p class="text-[11px] font-semibold text-indigo-700 truncate mt-0.5">
+                                    /Internal Storage/Download/Gemini/
+                                </p>
+                            </div>
+                        </div>
+                        <div class="w-8 h-8 rounded-xl bg-white text-indigo-600 flex items-center justify-center shadow-xs shrink-0">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </div>
+                    </button>
+
+                    <!-- 외부 앱 공유 수신 테스트 및 빠른 텍스트 메모 -->
+                    <div class="mt-2.5 flex items-center justify-between gap-2">
+                        <button type="button" onclick="simulateExternalShareIncoming()" class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-[11px] font-bold transition flex items-center justify-center gap-1.5 border border-slate-200/70">
+                            <i data-lucide="share" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            <span>외부 앱 공유 수신 테스트</span>
+                        </button>
+                    </div>
+
+                    <form onsubmit="sendQuickTextNote(event)" class="mt-2 flex gap-2">
+                        <input type="text" id="quick-note-input" placeholder="조원에게 빠른 텍스트 메모/링크 보내기..." 
+                            class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white">
+                        <button type="submit" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-indigo-600 text-white text-xs font-bold transition shrink-0 flex items-center gap-1">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i> 전송
+                        </button>
+                    </form>
+
+                    <!-- 전송 진행률 바 -->
+                    <div id="transfer-progress-box" class="hidden mt-3 p-3 rounded-2xl bg-slate-900 text-white space-y-1.5">
+                        <div class="flex justify-between items-center text-xs">
+                            <span id="transfer-filename" class="font-bold truncate max-w-[200px]">파일 전송 중...</span>
+                            <span id="transfer-percent" class="font-extrabold text-emerald-400">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                            <div id="transfer-bar" class="bg-gradient-to-r from-blue-400 to-emerald-400 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
+                        </div>
+                        <p id="transfer-subtext" class="text-[10px] text-slate-400">조원 채널로 데이터 스트리밍 중...</p>
+                    </div>
+                </section>
+
+                <!-- 3. 주고받은 파일 내역 -->
+                <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-extrabold text-slate-800">주고받은 파일 내역</h2>
+                        <div class="flex bg-slate-100 p-0.5 rounded-xl text-[11px] font-bold">
+                            <button onclick="filterHistory('all')" id="tab-all" class="px-2.5 py-1 rounded-lg bg-white text-indigo-600 shadow-sm transition">전체</button>
+                            <button onclick="filterHistory('received')" id="tab-received" class="px-2.5 py-1 rounded-lg text-slate-500 transition">수신함</button>
+                            <button onclick="filterHistory('sent')" id="tab-sent" class="px-2.5 py-1 rounded-lg text-slate-500 transition">송신함</button>
+                        </div>
+                    </div>
+
+                    <div id="file-history-list" class="space-y-2.5">
+                        <!-- JS 동적 렌더링 -->
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 최하단 고정 푸터: 앱버전 v1.5 | by.계남중YSE & 업데이트 확인 -->
+        <!-- ========================================== -->
+        <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
+            <div class="flex items-center gap-1.5 font-bold tracking-tight">
+                <span id="footer-version-text" class="text-white">앱버전 v1.5</span>
+                <span class="text-slate-600">|</span>
+                <span class="text-indigo-300">by.계남중YSE</span>
+            </div>
+            <button onclick="checkForAppUpdates()" id="btn-check-update" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white font-bold transition active:scale-95">
+                <i id="update-check-icon" data-lucide="refresh-cw" class="w-3 h-3"></i>
+                <span>업데이트 확인</span>
             </button>
-          </form>
+        </footer>
+
+        <!-- ========================================== -->
+        <!-- 모달 1: 제미나이 폴더 우선 파일 선택기 (최신순 정렬) -->
+        <!-- ========================================== -->
+        <div id="gemini-picker-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end">
+            <div class="bg-white rounded-t-3xl h-[86%] flex flex-col overflow-hidden shadow-2xl">
+                <div class="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900">파일 선택 및 업로드</h3>
+                        <p class="text-[11px] text-slate-500">제미나이에서 받은 파일 폴더가 기본 경로로 열렸습니다</p>
+                    </div>
+                    <button onclick="closeGeminiFolderPicker()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- 폴더 경로 표시줄 & 날짜순 정렬 토글 -->
+                <div class="px-4 py-2.5 bg-indigo-50/80 border-b border-indigo-100 flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-1 text-[11px] font-bold text-indigo-800 bg-white px-2.5 py-1.5 rounded-xl border border-indigo-200/80 min-w-0 flex-1 overflow-x-auto no-scrollbar">
+                        <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+                        <span class="text-slate-400">/</span>
+                        <button onclick="switchPickerFolder('Download')" class="hover:underline text-slate-600 shrink-0">Download</button>
+                        <span class="text-slate-400">/</span>
+                        <button onclick="switchPickerFolder('Gemini')" id="current-folder-badge" class="text-indigo-700 font-extrabold flex items-center gap-1 shrink-0">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i> Gemini
+                        </button>
+                    </div>
+
+                    <button onclick="togglePickerSortOrder()" id="picker-sort-btn" class="px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white text-[11px] font-bold flex items-center gap-1 shrink-0 shadow-xs active:scale-95 transition">
+                        <i data-lucide="arrow-down-wide-short" class="w-3.5 h-3.5"></i>
+                        <span id="picker-sort-label">최신순</span>
+                    </button>
+                </div>
+
+                <div class="px-5 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
+                    <span class="truncate">경로: <code id="full-path-text" class="text-indigo-600 font-semibold">/Internal Storage/Download/Gemini/</code></span>
+                    <span id="sort-status-hint" class="font-bold text-emerald-600 shrink-0 ml-2">● 최근 날짜 상단 정렬됨</span>
+                </div>
+
+                <!-- 파일 목록 스크롤 영역 -->
+                <div id="picker-file-list" class="flex-1 overflow-y-auto no-scrollbar p-4 space-y-2">
+                    <!-- JS 동적 렌더링 -->
+                </div>
+
+                <!-- 하단: 내 기기 실제 파일 선택 & 선택 파일 전송 -->
+                <div class="p-4 bg-white border-t border-slate-100 space-y-2 shrink-0">
+                    <div class="flex gap-2">
+                        <label for="real-device-file-input" class="flex-1 py-3 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition">
+                            <i data-lucide="folder-plus" class="w-4 h-4 text-indigo-600"></i>
+                            <span>내 기기 실제 파일 선택</span>
+                            <input type="file" id="real-device-file-input" multiple class="hidden" onchange="handleRealDeviceFiles(event)">
+                        </label>
+
+                        <button onclick="sendSelectedPickerFiles()" id="btn-send-picked" class="flex-1 py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span id="btn-send-picked-text">선택 파일 전송 (1)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 주고받은 파일 / 메시지 내역 -->
-        <div class="bg-white rounded-[26px] p-4 shadow-xs border border-slate-100">
-          <div class="flex items-center justify-between mb-2.5">
-            <h2 class="font-extrabold text-sm text-slate-900">주고받은 파일 · 메모 내역</h2>
-            <button onclick="clearHistory()" class="text-[11px] text-slate-400 hover:text-rose-500 font-bold">
-              내역 비우기
-            </button>
-          </div>
-          <div id="historyList" class="space-y-2 max-h-56 overflow-y-auto custom-scroll">
-            <p class="text-xs text-slate-400 text-center py-5">아직 주고받은 파일이나 메모가 없습니다.</p>
-          </div>
+        <!-- ========================================== -->
+        <!-- 모달 2: 접속 중 이름 및 4자리 코드 변경 모달   -->
+        <!-- ========================================== -->
+        <div id="edit-profile-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
+            <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="user-pen" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-900">이름 및 4자리 코드 변경</h3>
+                            <p class="text-[11px] text-slate-500">접속 상태를 유지하며 즉시 정보를 변경합니다</p>
+                        </div>
+                    </div>
+                    <button onclick="closeEditProfileModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">변경할 내 이름 (닉네임)</label>
+                        <input type="text" id="edit-nickname-input" maxlength="12"
+                            class="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-bold text-slate-700">변경할 4자리 숫자 코드</label>
+                            <button type="button" onclick="setQuickPresetCode()" class="text-[11px] font-bold text-indigo-600 hover:underline">
+                                다른 방 번호 추천
+                            </button>
+                        </div>
+                        <input type="tel" id="edit-code-input" maxlength="4"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
+                            class="w-full px-4 py-3 rounded-2xl bg-indigo-50/70 border-2 border-indigo-200 text-center text-2xl font-extrabold tracking-[0.5em] text-indigo-700 focus:outline-none focus:border-indigo-600">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button onclick="closeEditProfileModal()" class="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+                        취소
+                    </button>
+                    <button onclick="applyProfileChanges()" class="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition">
+                        변경 적용하기
+                    </button>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <!-- ========================================== -->
+        <!-- 모달 3: 외부 앱 공유 수신 모달 (Web Share Target) -->
+        <!-- ========================================== -->
+        <div id="external-share-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
+            <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                            <i data-lucide="share" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-900">외부 앱에서 공유된 파일 도착</h3>
+                            <p class="text-[11px] text-slate-500">다른 앱의 [공유] 목록을 통해 전달되었습니다</p>
+                        </div>
+                    </div>
+                    <button onclick="closeExternalShareModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="bg-indigo-50/80 border border-indigo-200/80 rounded-2xl p-3.5 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-white border border-indigo-100 flex items-center justify-center shrink-0">
+                        <i data-lucide="file-code-2" class="w-5 h-5 text-indigo-600"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p id="ext-share-filename" class="text-xs font-extrabold text-slate-900 truncate">shared_project_file.html</p>
+                        <p id="ext-share-meta" class="text-[11px] text-indigo-700 font-semibold mt-0.5">18.4 KB • 방금 공유됨</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="closeExternalShareModal()" class="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+                        보관함에만 저장
+                    </button>
+                    <button onclick="sendExternalSharedFileNow()" class="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5">
+                        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        <span>조원에게 즉시 전송</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 모달 4: PWA 홈 화면 설치 안내 모달            -->
+        <!-- ========================================== -->
+        <div id="pwa-guide-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
+            <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                            <i data-lucide="smartphone" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-900">홈 화면에 웹앱 설치 (PWA)</h3>
+                            <p class="text-[11px] text-slate-500">설치 시 다른 앱의 [공유] 목록에도 자동 등록됩니다</p>
+                        </div>
+                    </div>
+                    <button onclick="closePwaGuideModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <div class="bg-slate-50 rounded-2xl p-3.5 space-y-2.5 text-xs text-slate-700 border border-slate-200/70">
+                    <div class="flex items-start gap-2">
+                        <span class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold shrink-0 mt-0.5">Android</span>
+                        <p class="leading-relaxed">크롬(Chrome) 우측 상단 <strong>[⋮ 메뉴] → [홈 화면에 추가]</strong> 또는 <strong>[앱 설치]</strong>를 누르면 바탕화면에 설치되고 다른 앱에서 공유 시 목록에 나타납니다.</p>
+                    </div>
+                    <div class="flex items-start gap-2 pt-2 border-t border-slate-200/70">
+                        <span class="px-1.5 py-0.5 rounded bg-slate-800 text-white text-[10px] font-bold shrink-0 mt-0.5">iOS</span>
+                        <p class="leading-relaxed">Safari 하단 <strong>[공유 버튼] → [홈 화면에 추가]</strong>를 선택해 앱처럼 실행할 수 있습니다.</p>
+                    </div>
+                </div>
+
+                <button onclick="closePwaGuideModal()" class="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition">
+                    확인했습니다
+                </button>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 모달 5: 방 나가기(로그아웃) 확인 모달          -->
+        <!-- ========================================== -->
+        <div id="leave-confirm-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
+            <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4 text-center">
+                <div class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                    <i data-lucide="log-out" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-extrabold text-slate-900">방에서 완전히 나가시겠습니까?</h3>
+                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+                        뒤로가기를 누르시면 접속이 계속 유지됩니다.<br>완전히 로그아웃할 때만 방 나가기를 눌러주세요.
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="closeLeaveConfirmModal()" class="flex-1 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition">
+                        접속 유지
+                    </button>
+                    <button onclick="executeLeaveRoom()" class="flex-1 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition">
+                        방 나가기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- 토스트 알림 메시지 박스                     -->
+        <!-- ========================================== -->
+        <div id="toast-box" class="hidden absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
+            <i id="toast-icon" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <span id="toast-message" class="flex-1 leading-snug">알림 메시지</span>
+        </div>
+
     </div>
 
-    <!-- 최하단 다크 네이비 버전 푸터 -->
-    <footer class="bg-slate-900 text-slate-300 px-5 py-3 flex items-center justify-between text-[11px]">
-      <span class="font-semibold">앱버전 <strong class="text-white">v1.4</strong> | by.계남중YSE</span>
-      <button onclick="checkVersionUpdate(true)" class="text-amber-400 hover:underline font-extrabold">
-        업데이트 확인
-      </button>
-    </footer>
-  </div>
+    <script>
+        // ==========================================
+        // 0. 앱 버전 관리 및 원클릭 업데이트 상수
+        // (※ 버전 업 시 파일 상단 주석 + 푸터 #footer-version-text + 아래 APP_VERSION 3곳 동시 수정!)
+        // ==========================================
+        const APP_VERSION = 'v1.5';
+        const VERSION_STORAGE_KEY = 'gyenam_app_version_installed';
+        const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
+        let pendingExternalShareItem = null;
+        let deferredInstallPrompt = null;
+        let swRegistration = null;
 
-  <!-- 모달 1: 이름 / 코드 변경 -->
-  <div id="editModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-sm rounded-[28px] p-5 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="font-extrabold text-base text-slate-900">이름 / 방 코드 변경</h3>
-        <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-      </div>
-      <div class="space-y-3">
-        <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">변경할 이름</label>
-          <input id="editNameInput" type="text" maxlength="12" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">변경할 4자리 방 코드</label>
-          <input id="editCodeInput" type="tel" inputmode="numeric" maxlength="4"
-            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-base font-extrabold tracking-[0.3em] text-center" />
-        </div>
-      </div>
-      <div class="flex gap-2 pt-1">
-        <button onclick="closeEditModal()" class="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-xs">취소</button>
-        <button onclick="saveProfileEdit()" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs">저장 및 재접속</button>
-      </div>
-    </div>
-  </div>
+        // ==========================================
+        // 1. PWA Manifest (Web Share Target) & Service Worker 등록/업데이트
+        // ==========================================
+        function initPwaInfrastructure() {
+            document.getElementById('footer-version-text').textContent = `앱버전 ${APP_VERSION}`;
 
-  <!-- 모달 2: 파일 선택 (제미나이 경로 안내 + 최신순 정렬) -->
-  <div id="fileModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white w-full max-w-[440px] rounded-t-[28px] sm:rounded-[28px] p-5 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
-      <div class="flex items-center justify-between">
-        <div>
-          <h3 class="font-extrabold text-base text-slate-900">보낼 파일 선택 (최신 날짜순)</h3>
-          <p class="text-[11px] text-indigo-600 font-bold mt-0.5">기본 경로: /Internal Storage/Download/Gemini/</p>
-        </div>
-        <button onclick="closeFileModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
-      </div>
-
-      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] text-amber-900 leading-relaxed">
-        💡 스마트폰에서는 아래 버튼을 누른 뒤 파일 선택기 상단 경로에서 <strong>Download &gt; Gemini</strong> 폴더를 선택하시면 방금 만든 파일이 맨 위에 표시됩니다.
-      </div>
-
-      <button onclick="triggerDeviceFilePicker()" class="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition">
-        <i data-lucide="folder-open" class="w-4 h-4"></i>
-        <span>내 기기(스마트폰/PC)에서 파일 고르기</span>
-      </button>
-
-      <div id="stagedFilesSection" class="hidden flex-1 flex flex-col min-h-0 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-700">선택된 파일 (최신순 자동 정렬됨)</span>
-          <span id="stagedCount" class="text-[11px] font-extrabold text-blue-600">0개</span>
-        </div>
-        <div id="stagedFilesList" class="flex-1 overflow-y-auto space-y-2 custom-scroll pr-1"></div>
-        <button onclick="sendStagedFiles()" class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-md transition">
-          선택한 조원에게 즉시 전송하기
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const APP_VERSION = 'v1.4';
-    const ROOM_PREFIX = 'gyenam-ms-room-';
-
-    // 기기 영구 고유 ID (재접속/뒤로가기 시 중복 계정 생성 완벽 방지)
-    function getPersistentDeviceId() {
-      let id = localStorage.getItem('gyenam_permanent_device_id');
-      if (!id) {
-        id = 'dev_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
-        localStorage.setItem('gyenam_permanent_device_id', id);
-      }
-      return id;
-    }
-
-    function getDeviceLabel() {
-      const ua = navigator.userAgent;
-      if (/iPad|Tablet/i.test(ua)) return '태블릿';
-      if (/Mobile|Android|iPhone/i.test(ua)) return '스마트폰';
-      return '근거리 연결';
-    }
-
-    const MY_DEVICE_ID = getPersistentDeviceId();
-
-    let state = {
-      joined: false,
-      name: '',
-      code: '',
-      deviceType: getDeviceLabel(),
-      selectedPeers: new Set(),
-      history: []
-    };
-
-    let peer = null;
-    let isHost = false;
-    let hostConn = null;
-    let membersMap = {};
-    let heartbeatInterval = null;
-    let stagedFiles = [];
-    let deferredInstallPrompt = null;
-
-    window.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      setupDynamicPWA();
-      loadSavedSession();
-      setupBackButtonGuard();
-      checkSharedTargetFiles();
-      checkVersionUpdate(false);
-      setInterval(() => checkVersionUpdate(false), 30000);
-    });
-
-    // 앱 종료/백그라운드 이탈 시 즉시 퇴장 신호 전송
-    window.addEventListener('pagehide', () => {
-      if (state.joined) {
-        broadcastPacket({ type: 'leave', deviceId: MY_DEVICE_ID });
-      }
-    });
-
-    // ==========================================
-    // 강제 업데이트 체크 (구버전 화면 잠금)
-    // ==========================================
-    function compareVersions(v1, v2) {
-      const n1 = parseFloat(String(v1).replace(/[^0-9.]/g, '')) || 0;
-      const n2 = parseFloat(String(v2).replace(/[^0-9.]/g, '')) || 0;
-      return n1 - n2;
-    }
-
-    async function checkVersionUpdate(isManual) {
-      try {
-        const res = await fetch(`./index.html?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const html = await res.text();
-        const match = html.match(/const\s+APP_VERSION\s*=\s*['"](v[\d.]+)['"]/);
-        if (match && match[1]) {
-          const remoteVer = match[1];
-          if (compareVersions(remoteVer, APP_VERSION) > 0) {
-            document.getElementById('latestVersionText').textContent = remoteVer;
-            document.getElementById('forceUpdateModal').classList.remove('hidden');
-            return;
-          }
-        }
-        if (isManual) showToast(`현재 최신 버전(${APP_VERSION})을 사용 중입니다.`);
-      } catch (e) {
-        if (isManual) showToast(`현재 버전: ${APP_VERSION}`);
-      }
-    }
-
-    function applyForceUpdate() {
-      if ('caches' in window) {
-        caches.keys().then(names => names.forEach(name => caches.delete(name)));
-      }
-      location.href = location.pathname + '?v=' + Date.now();
-    }
-
-    // ==========================================
-    // PWA 설치 & 뒤로가기 세션 유지
-    // ==========================================
-    function setupDynamicPWA() {
-      const manifest = {
-        name: '계남중 파일업다운',
-        short_name: '계남업다운',
-        start_url: location.href,
-        display: 'standalone',
-        background_color: '#f8f9fc',
-        theme_color: '#2563eb',
-        icons: [{
-          src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%232563eb'/%3E%3Cpath d='M96 44l44 44h-28v60H80V88H52l44-44z' fill='white'/%3E%3C/svg%3E",
-          sizes: '192x192',
-          type: 'image/svg+xml'
-        }],
-        share_target: {
-          action: location.pathname,
-          method: 'GET',
-          params: { title: 'title', text: 'text', url: 'url' }
-        }
-      };
-      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-      const link = document.createElement('link');
-      link.rel = 'manifest';
-      link.href = URL.createObjectURL(blob);
-      document.head.appendChild(link);
-
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredInstallPrompt = e;
-      });
-    }
-
-    async function promptInstall() {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        const { outcome } = await deferredInstallPrompt.userChoice;
-        if (outcome === 'accepted') {
-          showToast('홈 화면에 앱이 설치되었습니다!');
-          deferredInstallPrompt = null;
-        }
-      } else {
-        showToast('브라우저 우측 상단 메뉴(⋮)에서 [앱 설치 / 홈 화면에 추가]를 눌러주세요.');
-      }
-    }
-
-    function setupBackButtonGuard() {
-      history.pushState({ page: 'gyenam-app' }, '', location.href);
-      window.addEventListener('popstate', () => {
-        if (state.joined && document.getElementById('keepSessionToggle').checked) {
-          history.pushState({ page: 'gyenam-app' }, '', location.href);
-          showToast('접속이 유지되고 있습니다. 나가려면 [방 나가기]를 누르세요.');
-        }
-      });
-    }
-
-    function saveSession() {
-      localStorage.setItem('gyenam_session_data', JSON.stringify({
-        joined: state.joined,
-        name: state.name,
-        code: state.code
-      }));
-    }
-
-    function loadSavedSession() {
-      try {
-        const saved = JSON.parse(localStorage.getItem('gyenam_session_data'));
-        if (saved && saved.name) document.getElementById('inputName').value = saved.name;
-        if (saved && saved.code) document.getElementById('inputCode').value = saved.code;
-        if (saved && saved.joined && saved.name && /^\d{4}$/.test(saved.code)) {
-          state.name = saved.name;
-          state.code = saved.code;
-          enterRoomUI();
-          initRoomNetwork();
-        }
-      } catch (e) {}
-    }
-
-    function generateRandomCode() {
-      document.getElementById('inputCode').value = Math.floor(1000 + Math.random() * 9000).toString();
-    }
-
-    function joinRoom() {
-      const name = document.getElementById('inputName').value.trim() || '김계남';
-      const code = document.getElementById('inputCode').value.trim();
-
-      if (!/^\d{4}$/.test(code)) {
-        showToast('4자리 숫자 코드를 정확히 입력해주세요.');
-        return;
-      }
-
-      state.name = name;
-      state.code = code;
-      state.joined = true;
-      saveSession();
-      enterRoomUI();
-      initRoomNetwork();
-    }
-
-    function enterRoomUI() {
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('mainScreen').classList.remove('hidden');
-      document.getElementById('displayMyName').textContent = `${state.name} (나)`;
-      document.getElementById('displayCodeBadge').textContent = `#${state.code}`;
-      document.getElementById('waitingCodeText').textContent = `#${state.code}`;
-      renderPeers();
-      lucide.createIcons();
-    }
-
-    function leaveRoom() {
-      broadcastPacket({ type: 'leave', deviceId: MY_DEVICE_ID });
-      cleanupNetwork();
-      state.joined = false;
-      state.selectedPeers.clear();
-      saveSession();
-      document.getElementById('mainScreen').classList.add('hidden');
-      document.getElementById('loginScreen').classList.remove('hidden');
-      showToast('방에서 나왔습니다.');
-    }
-
-    function openEditModal() {
-      document.getElementById('editNameInput').value = state.name;
-      document.getElementById('editCodeInput').value = state.code;
-      document.getElementById('editModal').classList.remove('hidden');
-    }
-
-    function closeEditModal() {
-      document.getElementById('editModal').classList.add('hidden');
-    }
-
-    function saveProfileEdit() {
-      const newName = document.getElementById('editNameInput').value.trim();
-      const newCode = document.getElementById('editCodeInput').value.trim();
-      if (!newName || !/^\d{4}$/.test(newCode)) {
-        showToast('이름과 4자리 숫자 코드를 확인해주세요.');
-        return;
-      }
-      const codeChanged = newCode !== state.code;
-      state.name = newName;
-      state.code = newCode;
-      saveSession();
-      closeEditModal();
-      enterRoomUI();
-
-      if (codeChanged) {
-        broadcastPacket({ type: 'leave', deviceId: MY_DEVICE_ID });
-        cleanupNetwork();
-        initRoomNetwork();
-        showToast(`방 코드 #${newCode}로 이동했습니다.`);
-      } else {
-        broadcastPacket({ type: 'join', deviceId: MY_DEVICE_ID, name: state.name, deviceType: state.deviceType });
-        showToast('이름이 변경되었습니다.');
-      }
-    }
-
-    // ==========================================
-    // P2P 실시간 방 연결 (중복 계정 완벽 방지 + 하트비트)
-    // ==========================================
-    function cleanupNetwork() {
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
-      Object.values(membersMap).forEach(m => { try { if (m.conn) m.conn.close(); } catch(e){} });
-      membersMap = {};
-      if (hostConn) { try { hostConn.close(); } catch(e){} hostConn = null; }
-      if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
-      isHost = false;
-      renderPeers();
-    }
-
-    function reconnectPeers() {
-      showToast('주변 조원 기기를 다시 탐색합니다...');
-      cleanupNetwork();
-      initRoomNetwork();
-    }
-
-    function initRoomNetwork() {
-      const roomHostId = `${ROOM_PREFIX}${state.code}-host`;
-      document.getElementById('connectionStatus').textContent = '연결 탐색 중...';
-
-      const tryHost = new Peer(roomHostId, { debug: 0 });
-
-      tryHost.on('open', () => {
-        isHost = true;
-        peer = tryHost;
-        document.getElementById('connectionStatus').textContent = '실시간 동기화';
-
-        peer.on('connection', (conn) => {
-          conn.on('open', () => {
-            conn.on('data', (data) => handlePacket(conn, data));
-          });
-          conn.on('close', () => pruneDisconnectedConn(conn));
-          conn.on('error', () => pruneDisconnectedConn(conn));
-        });
-
-        // 방장 하트비트: 12초 이상 응답 없는 유령 계정 자동 삭제
-        heartbeatInterval = setInterval(() => {
-          const now = Date.now();
-          let changed = false;
-          Object.entries(membersMap).forEach(([devId, info]) => {
-            if (now - info.lastSeen > 12000 || (info.conn && !info.conn.open)) {
-              delete membersMap[devId];
-              state.selectedPeers.delete(devId);
-              changed = true;
+            // 이전 저장 버전과 다를 경우 업데이트 배너 표시
+            const installedVersion = localStorage.getItem(VERSION_STORAGE_KEY);
+            if (installedVersion && installedVersion !== APP_VERSION) {
+                showUpdateAvailableBanner(`새 버전(${APP_VERSION})이 감지되었습니다!`);
+            } else {
+                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
             }
-          });
-          if (changed) {
-            renderPeers();
-            broadcastRoster();
-          }
-        }, 4000);
-      });
 
-      tryHost.on('error', (err) => {
-        if (err.type === 'unavailable-id') {
-          tryHost.destroy();
-          joinAsGuest(roomHostId);
-        } else {
-          document.getElementById('connectionStatus').textContent = '재연결 중...';
-        }
-      });
-    }
+            try {
+                const manifestObj = {
+                    name: '계남중 파일업다운',
+                    short_name: '계남중 파일업다운',
+                    description: '같은 4자리 코드를 입력한 조원들과 즉시 파일을 주고받는 웹앱',
+                    start_url: window.location.href,
+                    display: 'standalone',
+                    background_color: '#f8fafc',
+                    theme_color: '#3730a3',
+                    icons: [
+                        {
+                            src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='44' fill='%233730a3'/%3E%3Cpath d='M144 48L48 92l36 14 44-38-32 44 26 24 22-88z' fill='%23ffffff'/%3E%3C/svg%3E",
+                            sizes: '192x192',
+                            type: 'image/svg+xml',
+                            purpose: 'any maskable'
+                        }
+                    ],
+                    share_target: {
+                        action: window.location.pathname,
+                        method: 'GET',
+                        enctype: 'application/x-www-form-urlencoded',
+                        params: {
+                            title: 'title',
+                            text: 'text',
+                            url: 'url'
+                        }
+                    }
+                };
 
-    function joinAsGuest(roomHostId) {
-      isHost = false;
-      peer = new Peer({ debug: 0 });
+                const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+                const manifestUrl = URL.createObjectURL(manifestBlob);
+                const linkEl = document.createElement('link');
+                linkEl.rel = 'manifest';
+                linkEl.href = manifestUrl;
+                document.head.appendChild(linkEl);
 
-      peer.on('open', () => {
-        const conn = peer.connect(roomHostId, { reliable: true });
-        hostConn = conn;
-
-        conn.on('open', () => {
-          document.getElementById('connectionStatus').textContent = '실시간 동기화';
-          conn.send({
-            type: 'join',
-            deviceId: MY_DEVICE_ID,
-            name: state.name,
-            deviceType: state.deviceType
-          });
-
-          heartbeatInterval = setInterval(() => {
-            if (conn.open) {
-              conn.send({ type: 'ping', deviceId: MY_DEVICE_ID, name: state.name, deviceType: state.deviceType });
+                // Service Worker 등록 및 업데이트 감지
+                if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
+                    const swCode = `
+                        const CACHE_NAME = 'gyenam-fileshare-${APP_VERSION}';
+                        self.addEventListener('install', (event) => {
+                            self.skipWaiting();
+                        });
+                        self.addEventListener('activate', (event) => {
+                            event.waitUntil(
+                                caches.keys().then((keys) => Promise.all(
+                                    keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+                                )).then(() => self.clients.claim())
+                            );
+                        });
+                        self.addEventListener('fetch', (event) => {
+                            event.respondWith(
+                                fetch(event.request).catch(() => caches.match(event.request))
+                            );
+                        });
+                    `;
+                    const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(swBlob);
+                    navigator.serviceWorker.register(swUrl).then((reg) => {
+                        swRegistration = reg;
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        showUpdateAvailableBanner('새로운 앱 업데이트가 준비되었습니다!');
+                                    }
+                                });
+                            }
+                        });
+                    }).catch(() => {});
+                }
+            } catch (err) {
+                console.warn('PWA 초기화 건너뜀:', err);
             }
-          }, 4000);
-        });
 
-        conn.on('data', (data) => handlePacket(conn, data));
-
-        conn.on('close', () => {
-          cleanupNetwork();
-          setTimeout(initRoomNetwork, 600);
-        });
-      });
-
-      peer.on('error', () => {
-        document.getElementById('connectionStatus').textContent = '재연결 중...';
-      });
-    }
-
-    function pruneDisconnectedConn(closedConn) {
-      let changed = false;
-      Object.entries(membersMap).forEach(([devId, info]) => {
-        if (info.conn === closedConn) {
-          delete membersMap[devId];
-          state.selectedPeers.delete(devId);
-          changed = true;
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredInstallPrompt = e;
+            });
         }
-      });
-      if (changed) {
-        renderPeers();
-        if (isHost) broadcastRoster();
-      }
-    }
 
-    function handlePacket(conn, data) {
-      if (!data || !data.type) return;
-
-      if (data.type === 'join' || data.type === 'ping') {
-        if (data.deviceId === MY_DEVICE_ID) return;
-        const isNew = !membersMap[data.deviceId];
-        if (!isNew && membersMap[data.deviceId].conn && membersMap[data.deviceId].conn !== conn) {
-          try { membersMap[data.deviceId].conn.close(); } catch(e) {}
+        function showUpdateAvailableBanner(text) {
+            const banner = document.getElementById('update-banner');
+            document.getElementById('update-banner-text').textContent = text;
+            banner.classList.remove('hidden');
+            lucide.createIcons();
         }
-        membersMap[data.deviceId] = {
-          conn,
-          name: data.name,
-          deviceType: data.deviceType || '근거리 연결',
-          lastSeen: Date.now()
+
+        // 하단 '업데이트 확인' 버튼 동작
+        async function checkForAppUpdates() {
+            const icon = document.getElementById('update-check-icon');
+            icon.classList.add('animate-spin');
+            showToast(`현재 ${APP_VERSION} 최신 상태를 확인하고 있습니다...`);
+
+            try {
+                if (swRegistration) {
+                    await swRegistration.update();
+                }
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    const oldCaches = cacheNames.filter(name => !name.includes(APP_VERSION));
+                    if (oldCaches.length > 0) {
+                        await Promise.all(oldCaches.map(name => caches.delete(name)));
+                        icon.classList.remove('animate-spin');
+                        showUpdateAvailableBanner('오래된 캐시를 정리했습니다. 지금 적용할까요?');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('업데이트 확인 중 참고:', e);
+            }
+
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
+                showToast(`계남중 파일업다운 ${APP_VERSION} 최신 버전을 사용 중입니다!`);
+            }, 650);
+        }
+
+        // 원클릭 업데이트 적용 (캐시 초기화 후 새로고침, 세션 유지)
+        async function applyAppUpdate() {
+            try {
+                saveSessionState();
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+                if (swRegistration && swRegistration.waiting) {
+                    swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                }
+                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
+                showToast('최신 버전으로 업데이트를 적용합니다...');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 400);
+            } catch (e) {
+                window.location.reload();
+            }
+        }
+
+        async function triggerPwaInstall() {
+            if (deferredInstallPrompt) {
+                deferredInstallPrompt.prompt();
+                const { outcome } = await deferredInstallPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    showToast('계남중 파일업다운 웹앱이 홈 화면에 설치되었습니다!');
+                }
+                deferredInstallPrompt = null;
+            } else {
+                document.getElementById('pwa-guide-modal').classList.remove('hidden');
+                lucide.createIcons();
+            }
+        }
+
+        function closePwaGuideModal() {
+            document.getElementById('pwa-guide-modal').classList.add('hidden');
+        }
+
+        // ==========================================
+        // 2. 다중 탭/기기 실시간 동기화 (BroadcastChannel + Firebase 확장 준비)
+        // ==========================================
+        let deviceId = localStorage.getItem('gyenam_permanent_device_id');
+        if (!deviceId) {
+            deviceId = 'dev_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+            localStorage.setItem('gyenam_permanent_device_id', deviceId);
+        }
+        let syncChannel = null;
+        let liveSyncedPeers = {};
+
+        function initRealtimeSyncChannel() {
+            if ('BroadcastChannel' in window) {
+                syncChannel = new BroadcastChannel('gyenam_file_share_channel');
+                syncChannel.onmessage = (event) => {
+                    const msg = event.data;
+                    if (!msg || msg.senderId === deviceId) return;
+
+                    if (msg.type === 'PRESENCE_LEAVE') {
+                        if (liveSyncedPeers[msg.senderId]) {
+                            delete liveSyncedPeers[msg.senderId];
+                            renderPeers();
+                        }
+                    } else if (msg.type === 'PRESENCE_PING' && appState.isConnected && msg.roomCode === appState.roomCode) {
+                        liveSyncedPeers[msg.senderId] = {
+                            id: msg.senderId,
+                            name: msg.nickname,
+                            signal: '실시간 연결됨',
+                            selected: true,
+                            avatarColor: 'bg-teal-600',
+                            lastSeen: Date.now()
+                        };
+                        renderPeers();
+                        // 내 존재도 응답
+                        broadcastPresence('PRESENCE_PONG');
+                    } else if (msg.type === 'PRESENCE_PONG' && appState.isConnected && msg.roomCode === appState.roomCode) {
+                        liveSyncedPeers[msg.senderId] = {
+                            id: msg.senderId,
+                            name: msg.nickname,
+                            signal: '실시간 연결됨',
+                            selected: true,
+                            avatarColor: 'bg-teal-600',
+                            lastSeen: Date.now()
+                        };
+                        renderPeers();
+                    } else if (msg.type === 'FILE_TRANSFER' && appState.isConnected && msg.roomCode === appState.roomCode) {
+                        const isTarget = !msg.targetNames || msg.targetNames.includes(appState.nickname) || msg.targetAll;
+                        if (isTarget) {
+                            addHistoryItem({
+                                id: 'rx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                                type: 'received',
+                                sender: msg.senderName,
+                                receiver: '나',
+                                filename: msg.filename,
+                                size: msg.size,
+                                time: getCurrentTime(),
+                                ext: msg.ext,
+                                content: msg.content || ''
+                            });
+                            showToast(`📩 ${msg.senderName}님이 '${msg.filename}' 파일을 보냈습니다!`);
+                        }
+                    }
+                };
+            }
+        }
+
+        function broadcastPresence(type = 'PRESENCE_PING') {
+            if (syncChannel && appState.isConnected) {
+                syncChannel.postMessage({
+                    type,
+                    senderId: deviceId,
+                    nickname: appState.nickname,
+                    roomCode: appState.roomCode
+                });
+            }
+        }
+
+        // ==========================================
+        // 3. 앱 상태 및 세션 영속성 (localStorage + popstate 뒤로가기 방어)
+        // ==========================================
+        const defaultGeminiFiles = [
+            {
+                id: 'gf_1',
+                folder: 'Gemini',
+                filename: 'vibe_coding_v2.html',
+                size: '24.6 KB',
+                ext: 'html',
+                timestamp: Date.now() - 1000 * 60 * 2,
+                dateLabel: '오늘 14:19 (방금 받음)',
+                selected: true,
+                content: '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>제미나이 생성 파일</title></head><body><h1>계남중학교 조별 작업물</h1></body></html>'
+            },
+            {
+                id: 'gf_2',
+                folder: 'Gemini',
+                filename: 'gemini_generated_ui.zip',
+                size: '1.2 MB',
+                ext: 'zip',
+                timestamp: Date.now() - 1000 * 60 * 18,
+                dateLabel: '오늘 14:03',
+                selected: false,
+                content: 'PK... 제미나이 다운로드 폴더 UI 압축 파일'
+            },
+            {
+                id: 'gf_3',
+                folder: 'Gemini',
+                filename: '발표자료.pdf',
+                size: '840 KB',
+                ext: 'pdf',
+                timestamp: Date.now() - 1000 * 60 * 55,
+                dateLabel: '오늘 13:26',
+                selected: false,
+                content: '계남중학교 조별 발표 자료 PDF 문서'
+            },
+            {
+                id: 'gf_4',
+                folder: 'Gemini',
+                filename: '앱아이콘_시안.png',
+                size: '380 KB',
+                ext: 'png',
+                timestamp: Date.now() - 1000 * 60 * 60 * 22,
+                dateLabel: '어제 16:10',
+                selected: false,
+                content: '앱 아이콘 고해상도 시안 데이터'
+            },
+            {
+                id: 'df_1',
+                folder: 'Download',
+                filename: '수행평가_안내문.pdf',
+                size: '890 KB',
+                ext: 'pdf',
+                timestamp: Date.now() - 1000 * 60 * 60 * 48,
+                dateLabel: '11월 10일 10:15',
+                selected: false,
+                content: '계남중학교 정보 교과 조별 과제 안내문'
+            }
+        ];
+
+        const defaultHistory = [
+            {
+                id: 'f1',
+                type: 'received',
+                sender: '김민준',
+                receiver: '나',
+                filename: 'main_layout.html',
+                size: '12.8 KB',
+                time: '14:05',
+                ext: 'html',
+                content: '<!-- 조원 김민준이 공유한 메인 레이아웃 -->\n<h1>안녕하세요, 계남중 조별 프로젝트입니다!</h1>'
+            },
+            {
+                id: 'f2',
+                type: 'received',
+                sender: '이서연',
+                receiver: '나',
+                filename: '와이어프레임_시안.png',
+                size: '420 KB',
+                time: '14:08',
+                ext: 'png',
+                content: 'UI 와이어프레임 이미지 데이터'
+            }
+        ];
+
+        const appState = {
+            nickname: '김계남 (나)',
+            roomCode: '1234',
+            keepSession: true,
+            isConnected: false,
+            currentFilter: 'all',
+            pickerFolder: 'Gemini',
+            pickerSortDesc: true,
+            geminiFolderFiles: JSON.parse(JSON.stringify(defaultGeminiFiles)),
+            demoPeers: [],
+            history: JSON.parse(JSON.stringify(defaultHistory))
         };
-        renderPeers();
-        if (isHost) broadcastRoster();
-        if (isNew && data.type === 'join') {
-          showToast(`${data.name}님이 접속했습니다.`);
+
+        function getCombinedPeers() {
+            const liveList = Object.values(liveSyncedPeers);
+            return [...liveList, ...appState.demoPeers];
         }
-      }
-      else if (data.type === 'leave') {
-        if (membersMap[data.deviceId]) {
-          delete membersMap[data.deviceId];
-          state.selectedPeers.delete(data.deviceId);
-          renderPeers();
-          if (isHost) broadcastRoster();
+
+        function saveSessionState() {
+            if (!appState.keepSession && !appState.isConnected) {
+                localStorage.removeItem(SESSION_STORAGE_KEY);
+                return;
+            }
+            try {
+                const serializableHistory = appState.history.map(({ fileObj, ...rest }) => rest);
+                const payload = {
+                    nickname: appState.nickname,
+                    roomCode: appState.roomCode,
+                    keepSession: appState.keepSession,
+                    isConnected: appState.isConnected,
+                    demoPeers: appState.demoPeers,
+                    history: serializableHistory
+                };
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+            } catch (e) {
+                console.warn('세션 저장 오류:', e);
+            }
         }
-      }
-      else if (data.type === 'roster') {
-        const activeSet = new Set();
-        data.members.forEach(m => {
-          if (m.deviceId !== MY_DEVICE_ID) {
-            activeSet.add(m.deviceId);
-            membersMap[m.deviceId] = {
-              conn: hostConn,
-              name: m.name,
-              deviceType: m.deviceType,
-              lastSeen: Date.now()
+
+        function restoreSessionState() {
+            try {
+                const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+                if (!raw) return false;
+                const saved = JSON.parse(raw);
+                if (saved && saved.isConnected) {
+                    appState.nickname = saved.nickname || '김계남 (나)';
+                    appState.roomCode = saved.roomCode || '1234';
+                    appState.keepSession = saved.keepSession !== false;
+                    appState.isConnected = true;
+                    appState.demoPeers = [];
+                    if (Array.isArray(saved.history)) appState.history = saved.history;
+
+                    document.getElementById('input-nickname').value = appState.nickname;
+                    document.getElementById('input-room-code').value = appState.roomCode;
+                    return true;
+                }
+            } catch (e) {
+                console.warn('세션 복원 오류:', e);
+            }
+            return false;
+        }
+
+        function setupBrowserNavigationGuard() {
+            if (!window.history.state || !window.history.state.gyenamGuard) {
+                window.history.replaceState({ gyenamGuard: 'base' }, '', window.location.href);
+                window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+            }
+
+            window.addEventListener('popstate', () => {
+                const modals = [
+                    'gemini-picker-modal',
+                    'edit-profile-modal',
+                    'external-share-modal',
+                    'pwa-guide-modal',
+                    'leave-confirm-modal'
+                ];
+                let closedAnyModal = false;
+                modals.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el && !el.classList.contains('hidden')) {
+                        el.classList.add('hidden');
+                        closedAnyModal = true;
+                    }
+                });
+
+                if (appState.isConnected) {
+                    window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+                    if (!closedAnyModal) {
+                        showToast(`#${appState.roomCode} 방 접속이 유지되고 있습니다. 나가려면 우측 상단 [방 나가기]를 눌러주세요.`);
+                    }
+                }
+            });
+        }
+
+        // ==========================================
+        // 4. Web Share Target 수신 처리 및 외부 공유 시뮬레이션
+        // ==========================================
+        function handleIncomingWebShareTarget() {
+            const params = new URLSearchParams(window.location.search);
+            const sharedTitle = params.get('title');
+            const sharedText = params.get('text');
+            const sharedUrl = params.get('url');
+
+            if (sharedTitle || sharedText || sharedUrl) {
+                const combinedContent = [sharedTitle, sharedText, sharedUrl].filter(Boolean).join('\n');
+                const safeFilename = (sharedTitle ? sharedTitle.replace(/[^a-zA-Z0-9가-힣._-]/g, '_') : '외부공유_파일') + '.txt';
+                window.history.replaceState({ gyenamGuard: 'active' }, '', window.location.pathname);
+
+                receiveExternalSharedPayload(safeFilename, combinedContent, 'txt');
+            }
+        }
+
+        function simulateExternalShareIncoming() {
+            const sampleSharedItems = [
+                { filename: '제미나이_생성코드_공유.html', ext: 'html', content: '<!DOCTYPE html><html><body><h2>외부 앱 공유 시트로 전달된 HTML 파일</h2></body></html>' },
+                { filename: '조별과제_참고링크.txt', ext: 'txt', content: 'https://gyenam.ms.kr - 계남중학교 조별 프로젝트 참고 자료' }
+            ];
+            const pick = sampleSharedItems[Math.floor(Math.random() * sampleSharedItems.length)];
+            receiveExternalSharedPayload(pick.filename, pick.content, pick.ext);
+        }
+
+        function receiveExternalSharedPayload(filename, content, ext) {
+            const sizeStr = formatFileSize(new Blob([content]).size);
+            pendingExternalShareItem = {
+                id: 'ext_' + Date.now(),
+                folder: 'Gemini',
+                filename,
+                size: sizeStr,
+                ext,
+                timestamp: Date.now(),
+                dateLabel: '방금 외부 앱에서 공유됨',
+                selected: true,
+                content
             };
-          }
-        });
-        Object.keys(membersMap).forEach(id => {
-          if (!activeSet.has(id)) {
-            delete membersMap[id];
-            state.selectedPeers.delete(id);
-          }
-        });
-        renderPeers();
-      }
-      else if (data.type === 'text') {
-        if (isHost) relayPacket(data);
-        if (!data.targetIds || data.targetIds.includes(MY_DEVICE_ID)) {
-          addHistoryItem({
-            kind: 'text',
-            direction: 'in',
-            sender: data.senderName,
-            text: data.text,
-            time: formatTime(new Date())
-          });
-          showToast(`${data.senderName}님의 메모가 도착했습니다.`);
+
+            // 제미나이 폴더 목록 최상단에도 자동 저장
+            appState.geminiFolderFiles.unshift({ ...pendingExternalShareItem });
+
+            document.getElementById('ext-share-filename').textContent = filename;
+            document.getElementById('ext-share-meta').textContent = `${sizeStr} • 외부 앱 공유 시트로 수신됨`;
+            document.getElementById('external-share-modal').classList.remove('hidden');
+            lucide.createIcons();
         }
-      }
-      else if (data.type === 'file') {
-        if (isHost) relayPacket(data);
-        if (!data.targetIds || data.targetIds.includes(MY_DEVICE_ID)) {
-          const blob = new Blob([data.fileBuffer], { type: data.fileType || 'application/octet-stream' });
-          const downloadUrl = URL.createObjectURL(blob);
-          addHistoryItem({
-            kind: 'file',
-            direction: 'in',
-            sender: data.senderName,
-            fileName: data.fileName,
-            fileSize: formatBytes(data.fileSize),
-            downloadUrl,
-            time: formatTime(new Date())
-          });
-          showToast(`${data.senderName}님이 [${data.fileName}]을 보냈습니다!`);
+
+        function closeExternalShareModal() {
+            document.getElementById('external-share-modal').classList.add('hidden');
+            if (pendingExternalShareItem) {
+                showToast(`'${pendingExternalShareItem.filename}' 파일이 업로드 목록 상단에 저장되었습니다.`);
+                pendingExternalShareItem = null;
+            }
         }
-      }
-    }
 
-    function broadcastRoster() {
-      if (!isHost) return;
-      const members = [
-        { deviceId: MY_DEVICE_ID, name: state.name, deviceType: state.deviceType },
-        ...Object.entries(membersMap).map(([devId, info]) => ({
-          deviceId: devId,
-          name: info.name,
-          deviceType: info.deviceType
-        }))
-      ];
-      Object.values(membersMap).forEach(m => {
-        try { if (m.conn && m.conn.open) m.conn.send({ type: 'roster', members }); } catch (e) {}
-      });
-    }
+        function sendExternalSharedFileNow() {
+            const item = pendingExternalShareItem;
+            document.getElementById('external-share-modal').classList.add('hidden');
+            pendingExternalShareItem = null;
 
-    function relayPacket(packet) {
-      Object.entries(membersMap).forEach(([devId, info]) => {
-        if (devId !== packet.senderDeviceId && (!packet.targetIds || packet.targetIds.includes(devId))) {
-          try { if (info.conn && info.conn.open) info.conn.send(packet); } catch (e) {}
+            if (!item) return;
+
+            if (!appState.isConnected) {
+                joinRoom();
+            }
+            setTimeout(() => {
+                startFileTransfer(item.filename, item.size, item.ext, null, item.content);
+            }, 250);
         }
-      });
-    }
 
-    function broadcastPacket(packet) {
-      if (isHost) {
-        Object.entries(membersMap).forEach(([devId, info]) => {
-          if (!packet.targetIds || packet.targetIds.includes(devId)) {
-            try { if (info.conn && info.conn.open) info.conn.send(packet); } catch (e) {}
-          }
-        });
-      } else if (hostConn && hostConn.open) {
-        hostConn.send(packet);
-      }
-    }
-
-    // ==========================================
-    // UI 렌더링 (3열 카드 그리드)
-    // ==========================================
-    function renderPeers() {
-      const entries = Object.entries(membersMap);
-      const count = entries.length;
-
-      document.getElementById('peerCountBadge').textContent = `${count}명 연결됨`;
-      const emptyBox = document.getElementById('emptyPeersBox');
-      const grid = document.getElementById('peersGrid');
-
-      if (count === 0) {
-        emptyBox.classList.remove('hidden');
-        grid.classList.add('hidden');
-        document.getElementById('targetLabel').textContent = '전체 조원 (0명)에게 전송';
-        return;
-      }
-
-      emptyBox.classList.add('hidden');
-      grid.classList.remove('hidden');
-      grid.innerHTML = '';
-
-      const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-600'];
-
-      entries.forEach(([devId, info], idx) => {
-        const isSelected = state.selectedPeers.has(devId);
-        const initial = info.name.charAt(0);
-        const color = colors[idx % colors.length];
-
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.onclick = () => togglePeerSelection(devId);
-        card.className = `p-3 rounded-2xl border text-center transition flex flex-col items-center bg-white ${
-          isSelected
-            ? 'border-indigo-500 ring-2 ring-indigo-500/20'
-            : 'border-slate-200 hover:border-indigo-300'
-        }`;
-
-        card.innerHTML = `
-          <div class="relative w-11 h-11 rounded-full ${color} text-white font-extrabold text-base flex items-center justify-center shadow-xs">
-            ${escapeHtml(initial)}
-            <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${isSelected ? 'bg-indigo-600' : 'bg-slate-300'} text-white text-[10px] flex items-center justify-center border border-white">✓</span>
-          </div>
-          <p class="font-extrabold text-xs text-slate-900 mt-2 truncate w-full">${escapeHtml(info.name)}</p>
-          <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(info.deviceType)}</p>
-        `;
-        grid.appendChild(card);
-      });
-
-      const selectedCount = state.selectedPeers.size;
-      document.getElementById('targetLabel').textContent =
-        selectedCount > 0 ? `선택한 ${selectedCount}명에게 전송` : `전체 조원 (${count}명)에게 전송`;
-    }
-
-    function togglePeerSelection(devId) {
-      if (state.selectedPeers.has(devId)) {
-        state.selectedPeers.delete(devId);
-      } else {
-        state.selectedPeers.add(devId);
-      }
-      renderPeers();
-    }
-
-    function getTargetDeviceIds() {
-      const allIds = Object.keys(membersMap);
-      if (allIds.length === 0) return [];
-      return state.selectedPeers.size > 0 ? Array.from(state.selectedPeers) : allIds;
-    }
-
-    // ==========================================
-    // 파일 선택 (최신순 정렬) & 바이너리 전송
-    // ==========================================
-    function openFileModal() {
-      document.getElementById('fileModal').classList.remove('hidden');
-      lucide.createIcons();
-    }
-
-    function closeFileModal() {
-      document.getElementById('fileModal').classList.add('hidden');
-    }
-
-    function triggerDeviceFilePicker() {
-      document.getElementById('realFileInput').click();
-    }
-
-    function handleRealFileSelect(event) {
-      const files = Array.from(event.target.files || []);
-      if (files.length === 0) return;
-      files.sort((a, b) => b.lastModified - a.lastModified);
-      stagedFiles = files;
-      renderStagedFiles();
-    }
-
-    function renderStagedFiles() {
-      const section = document.getElementById('stagedFilesSection');
-      const list = document.getElementById('stagedFilesList');
-      document.getElementById('stagedCount').textContent = `${stagedFiles.length}개`;
-
-      if (stagedFiles.length === 0) {
-        section.classList.add('hidden');
-        return;
-      }
-
-      section.classList.remove('hidden');
-      list.innerHTML = stagedFiles.map((f, idx) => `
-        <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-          <div class="min-w-0 pr-2">
-            <p class="text-xs font-bold text-slate-800 truncate">${escapeHtml(f.name)}</p>
-            <p class="text-[10px] text-slate-500">${formatBytes(f.size)} · ${new Date(f.lastModified).toLocaleString('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
-          </div>
-          <button onclick="removeStagedFile(${idx})" class="text-xs text-slate-400 hover:text-rose-500 font-bold px-1.5">✕</button>
-        </div>
-      `).join('');
-    }
-
-    function removeStagedFile(idx) {
-      stagedFiles.splice(idx, 1);
-      renderStagedFiles();
-    }
-
-    async function sendStagedFiles() {
-      const targets = getTargetDeviceIds();
-      if (targets.length === 0) {
-        showToast('현재 방에 연결된 조원이 없습니다.');
-        return;
-      }
-      if (stagedFiles.length === 0) return;
-
-      showToast(`${stagedFiles.length}개 파일 전송 중...`);
-
-      for (const file of stagedFiles) {
-        const buffer = await file.arrayBuffer();
-        broadcastPacket({
-          type: 'file',
-          senderDeviceId: MY_DEVICE_ID,
-          senderName: state.name,
-          targetIds: targets,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          fileBuffer: buffer
-        });
-
-        addHistoryItem({
-          kind: 'file',
-          direction: 'out',
-          sender: `나 → ${targets.length}명`,
-          fileName: file.name,
-          fileSize: formatBytes(file.size),
-          downloadUrl: URL.createObjectURL(file),
-          time: formatTime(new Date())
-        });
-      }
-
-      stagedFiles = [];
-      document.getElementById('realFileInput').value = '';
-      renderStagedFiles();
-      closeFileModal();
-      showToast('파일 전송이 완료되었습니다!');
-    }
-
-    function sendTextMessage(e) {
-      e.preventDefault();
-      const input = document.getElementById('quickTextInput');
-      const text = input.value.trim();
-      if (!text) return;
-
-      const targets = getTargetDeviceIds();
-      if (targets.length === 0) {
-        showToast('현재 방에 연결된 조원이 없습니다.');
-        return;
-      }
-
-      broadcastPacket({
-        type: 'text',
-        senderDeviceId: MY_DEVICE_ID,
-        senderName: state.name,
-        targetIds: targets,
-        text
-      });
-
-      addHistoryItem({
-        kind: 'text',
-        direction: 'out',
-        sender: `나 → ${targets.length}명`,
-        text,
-        time: formatTime(new Date())
-      });
-
-      input.value = '';
-      showToast('메모를 전송했습니다.');
-    }
-
-    function testWebShareReceive() {
-      document.getElementById('quickTextInput').value = 'https://gemini.google.com/ (제미나이 공유 링크)';
-      showToast('외부 앱에서 공유된 링크가 입력창에 자동 수신되었습니다.');
-    }
-
-    function checkSharedTargetFiles() {
-      const params = new URLSearchParams(location.search);
-      const sharedText = params.get('text') || params.get('url');
-      if (sharedText) {
-        document.getElementById('quickTextInput').value = sharedText;
-        showToast('외부 앱에서 공유된 내용을 불러왔습니다.');
-      }
-    }
-
-    function addHistoryItem(item) {
-      state.history.unshift(item);
-      renderHistory();
-    }
-
-    function clearHistory() {
-      state.history = [];
-      renderHistory();
-    }
-
-    function renderHistory() {
-      const container = document.getElementById('historyList');
-      if (state.history.length === 0) {
-        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-5">아직 주고받은 파일이나 메모가 없습니다.</p>`;
-        return;
-      }
-
-      container.innerHTML = state.history.map((item, idx) => {
-        const isOut = item.direction === 'out';
-        const badge = isOut
-          ? `<span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">보냄</span>`
-          : `<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">받음</span>`;
-
-        if (item.kind === 'file') {
-          return `
-            <div class="p-3 rounded-2xl border ${isOut ? 'bg-blue-50/40 border-blue-100' : 'bg-emerald-50/40 border-emerald-100'} flex items-center justify-between gap-2">
-              <div class="min-w-0">
-                <div class="flex items-center gap-1.5 mb-1">
-                  ${badge}
-                  <span class="text-[11px] font-bold text-slate-600">${escapeHtml(item.sender)}</span>
-                  <span class="text-[10px] text-slate-400">${item.time}</span>
-                </div>
-                <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHtml(item.fileName)}</p>
-                <p class="text-[10px] text-slate-500 mt-0.5">${item.fileSize}</p>
-              </div>
-              <a href="${item.downloadUrl}" download="${escapeHtml(item.fileName)}"
-                class="shrink-0 bg-slate-900 hover:bg-blue-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl transition">
-                저장
-              </a>
-            </div>
-          `;
-        } else {
-          return `
-            <div class="p-3 rounded-2xl border ${isOut ? 'bg-blue-50/40 border-blue-100' : 'bg-emerald-50/40 border-emerald-100'} flex items-center justify-between gap-2">
-              <div class="min-w-0">
-                <div class="flex items-center gap-1.5 mb-1">
-                  ${badge}
-                  <span class="text-[11px] font-bold text-slate-600">${escapeHtml(item.sender)}</span>
-                  <span class="text-[10px] text-slate-400">${item.time}</span>
-                </div>
-                <p class="text-xs text-slate-800 break-all">${escapeHtml(item.text)}</p>
-              </div>
-              <button onclick="copyText(${idx})" class="shrink-0 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-bold px-2.5 py-1.5 rounded-xl">
-                복사
-              </button>
-            </div>
-          `;
+        // ==========================================
+        // 5. 방 접속, 실시간 이름/코드 변경, 로그아웃
+        // ==========================================
+        function generateRandomCode() {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('input-room-code').value = randomNum;
+            showToast(`새로운 4자리 코드 #${randomNum} 이(가) 생성되었습니다.`);
         }
-      }).join('');
-    }
 
-    function copyText(idx) {
-      const item = state.history[idx];
-      if (!item || !item.text) return;
-      const temp = document.createElement('textarea');
-      temp.value = item.text;
-      document.body.appendChild(temp);
-      temp.select();
-      document.execCommand('copy');
-      document.body.removeChild(temp);
-      showToast('클립보드에 복사되었습니다.');
-    }
+        function joinRoom(isAutoRestore = false) {
+            if (!isAutoRestore) {
+                const nickInput = document.getElementById('input-nickname').value.trim();
+                const codeInput = document.getElementById('input-room-code').value.trim();
+                const keepCheck = document.getElementById('toggle-session-keep').checked;
 
-    function showToast(msg) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.remove('opacity-0');
-      clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => t.classList.add('opacity-0'), 2800);
-    }
+                if (!nickInput) {
+                    showToast('사용할 이름(닉네임)을 입력해주세요!', 'warning');
+                    document.getElementById('input-nickname').focus();
+                    return;
+                }
+                if (!/^\d{4}$/.test(codeInput)) {
+                    showToast('4자리 숫자 코드를 정확히 입력해주세요! (예: 1234)', 'warning');
+                    document.getElementById('input-room-code').focus();
+                    return;
+                }
 
-    function formatBytes(bytes) {
-      if (!bytes) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    }
+                appState.nickname = nickInput;
+                appState.roomCode = codeInput;
+                appState.keepSession = keepCheck;
+                appState.isConnected = true;
+            }
 
-    function formatTime(date) {
-      return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    }
+            syncRoomUI();
+            saveSessionState();
 
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
-    }
-  </script>
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+
+            window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+            broadcastPresence('PRESENCE_PING');
+
+            renderPeers();
+            renderHistory();
+            lucide.createIcons();
+
+            if (!isAutoRestore) {
+                showToast(`#${appState.roomCode} 방에 접속했습니다! 뒤로가기를 눌러도 접속이 유지됩니다.`);
+            }
+        }
+
+        function syncRoomUI() {
+            document.getElementById('display-nickname').textContent = appState.nickname;
+            document.getElementById('display-room-code').textContent = appState.roomCode;
+            document.getElementById('radar-code-label').textContent = `#${appState.roomCode}`;
+        }
+
+        function openEditProfileModal() {
+            document.getElementById('edit-nickname-input').value = appState.nickname;
+            document.getElementById('edit-code-input').value = appState.roomCode;
+            document.getElementById('edit-profile-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeEditProfileModal() {
+            document.getElementById('edit-profile-modal').classList.add('hidden');
+        }
+
+        function setQuickPresetCode() {
+            const presetCodes = ['5678', '2026', '7777', '3021'];
+            const current = document.getElementById('edit-code-input').value;
+            const next = presetCodes.find(c => c !== current) || '5678';
+            document.getElementById('edit-code-input').value = next;
+        }
+
+        function applyProfileChanges() {
+            const newNick = document.getElementById('edit-nickname-input').value.trim();
+            const newCode = document.getElementById('edit-code-input').value.trim();
+
+            if (!newNick) {
+                showToast('변경할 이름을 입력해주세요!', 'warning');
+                return;
+            }
+            if (!/^\d{4}$/.test(newCode)) {
+                showToast('4자리 숫자 코드를 정확히 입력해주세요!', 'warning');
+                return;
+            }
+
+            const codeChanged = appState.roomCode !== newCode;
+            appState.nickname = newNick;
+            appState.roomCode = newCode;
+
+            if (codeChanged) {
+                liveSyncedPeers = {};
+                appState.demoPeers = [];
+            }
+
+            syncRoomUI();
+            broadcastPresence('PRESENCE_PING');
+            renderPeers();
+            saveSessionState();
+            closeEditProfileModal();
+            showToast(`이름(${appState.nickname})과 코드(#${appState.roomCode})가 변경되었습니다!`);
+        }
+
+        function confirmLeaveRoom() {
+            document.getElementById('leave-confirm-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeLeaveConfirmModal() {
+            document.getElementById('leave-confirm-modal').classList.add('hidden');
+        }
+
+        function executeLeaveRoom() {
+            closeLeaveConfirmModal();
+            broadcastPresence('PRESENCE_LEAVE');
+            appState.isConnected = false;
+            liveSyncedPeers = {};
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            lucide.createIcons();
+            showToast('방에서 퇴장하여 초기 접속 화면으로 이동했습니다.');
+        }
+
+        // ==========================================
+        // 6. 제미나이 폴더 우선 접근 & 최신순 정렬 파일 피커
+        // ==========================================
+        function openGeminiFolderPicker() {
+            appState.pickerFolder = 'Gemini';
+            appState.pickerSortDesc = true;
+            updatePickerHeaderUI();
+            renderGeminiPickerFiles();
+            document.getElementById('gemini-picker-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeGeminiFolderPicker() {
+            document.getElementById('gemini-picker-modal').classList.add('hidden');
+        }
+
+        function switchPickerFolder(folderName) {
+            appState.pickerFolder = folderName;
+            updatePickerHeaderUI();
+            renderGeminiPickerFiles();
+            lucide.createIcons();
+        }
+
+        function togglePickerSortOrder() {
+            appState.pickerSortDesc = !appState.pickerSortDesc;
+            updatePickerHeaderUI();
+            renderGeminiPickerFiles();
+            lucide.createIcons();
+        }
+
+        function updatePickerHeaderUI() {
+            const folderBadge = document.getElementById('current-folder-badge');
+            const fullPathText = document.getElementById('full-path-text');
+            const sortLabel = document.getElementById('picker-sort-label');
+            const sortHint = document.getElementById('sort-status-hint');
+
+            if (appState.pickerFolder === 'Gemini') {
+                folderBadge.className = 'text-indigo-700 font-extrabold flex items-center gap-1 shrink-0';
+                fullPathText.textContent = '/Internal Storage/Download/Gemini/';
+            } else {
+                folderBadge.className = 'text-slate-400 font-medium flex items-center gap-1 shrink-0';
+                fullPathText.textContent = '/Internal Storage/Download/';
+            }
+
+            if (appState.pickerSortDesc) {
+                sortLabel.textContent = '최신순';
+                sortHint.textContent = '● 최근 날짜 상단 정렬됨';
+                sortHint.className = 'font-bold text-emerald-600 shrink-0 ml-2';
+            } else {
+                sortLabel.textContent = '오래된순';
+                sortHint.textContent = '● 이전 날짜 상단 정렬됨';
+                sortHint.className = 'font-bold text-slate-500 shrink-0 ml-2';
+            }
+        }
+
+        function renderGeminiPickerFiles() {
+            const container = document.getElementById('picker-file-list');
+            let files = appState.geminiFolderFiles.filter(f => {
+                if (appState.pickerFolder === 'Gemini') return f.folder === 'Gemini';
+                return true;
+            });
+
+            files.sort((a, b) => appState.pickerSortDesc ? (b.timestamp - a.timestamp) : (a.timestamp - b.timestamp));
+
+            container.innerHTML = files.map((file, idx) => {
+                const isLatest = appState.pickerSortDesc && idx === 0;
+                const iconHtml = getFileIconHtml(file.ext);
+
+                return `
+                    <div onclick="togglePickerFileSelect('${file.id}')" 
+                        class="flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition ${
+                            file.selected 
+                            ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-500/20' 
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs">
+                                ${iconHtml}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    ${isLatest ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500 text-white text-[9px] font-extrabold">최신 파일</span>' : ''}
+                                    <span class="text-[10px] font-semibold text-indigo-600">${file.dateLabel}</span>
+                                </div>
+                                <p class="text-xs font-extrabold text-slate-900 truncate">${file.filename}</p>
+                                <p class="text-[10px] text-slate-500">/Download/${file.folder} • ${file.size}</p>
+                            </div>
+                        </div>
+                        <div class="ml-2 w-6 h-6 rounded-full flex items-center justify-center border transition shrink-0 ${
+                            file.selected 
+                            ? 'bg-indigo-600 border-indigo-600 text-white' 
+                            : 'border-slate-300 bg-white text-transparent'
+                        }">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateSendPickedButton();
+            lucide.createIcons();
+        }
+
+        function togglePickerFileSelect(fileId) {
+            const target = appState.geminiFolderFiles.find(f => f.id === fileId);
+            if (target) {
+                target.selected = !target.selected;
+                renderGeminiPickerFiles();
+            }
+        }
+
+        function updateSendPickedButton() {
+            const selectedCount = appState.geminiFolderFiles.filter(f => f.selected).length;
+            const btn = document.getElementById('btn-send-picked');
+            const label = document.getElementById('btn-send-picked-text');
+            btn.disabled = selectedCount === 0;
+            label.textContent = selectedCount > 0 ? `선택 파일 전송 (${selectedCount})` : '파일을 선택하세요';
+        }
+
+        function handleRealDeviceFiles(event) {
+            const fileList = event.target.files;
+            if (!fileList || fileList.length === 0) return;
+
+            const sortedRealFiles = Array.from(fileList).sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+
+            [...sortedRealFiles].reverse().forEach(file => {
+                const ext = file.name.split('.').pop().toLowerCase();
+                const modTime = file.lastModified || Date.now();
+                const modDate = new Date(modTime);
+                const dateStr = `${modDate.getMonth() + 1}월 ${modDate.getDate()}일 ${String(modDate.getHours()).padStart(2, '0')}:${String(modDate.getMinutes()).padStart(2, '0')}`;
+
+                appState.geminiFolderFiles.unshift({
+                    id: 'real_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                    folder: 'Gemini',
+                    filename: file.name,
+                    size: formatFileSize(file.size),
+                    ext: ext,
+                    timestamp: modTime,
+                    dateLabel: `${dateStr} (기기 파일)`,
+                    selected: true,
+                    fileObj: file
+                });
+            });
+
+            appState.pickerFolder = 'Gemini';
+            appState.pickerSortDesc = true;
+            updatePickerHeaderUI();
+            renderGeminiPickerFiles();
+            showToast(`선택한 ${sortedRealFiles.length}개 실제 파일을 최신순 최상단에 추가했습니다.`);
+            event.target.value = '';
+        }
+
+        function sendSelectedPickerFiles() {
+            const selectedFiles = appState.geminiFolderFiles.filter(f => f.selected);
+            if (selectedFiles.length === 0) return;
+
+            closeGeminiFolderPicker();
+            selectedFiles.sort((a, b) => b.timestamp - a.timestamp);
+            const primaryFile = selectedFiles[0];
+            const displayLabel = selectedFiles.length === 1 
+                ? primaryFile.filename 
+                : `${primaryFile.filename} 외 ${selectedFiles.length - 1}건`;
+
+            startFileTransfer(displayLabel, primaryFile.size, primaryFile.ext, primaryFile.fileObj, primaryFile.content, selectedFiles);
+        }
+
+        // ==========================================
+        // 7. 주변 조원 렌더링, 파일 송수신 및 Web Share API 공유
+        // ==========================================
+        function renderPeers() {
+            const peers = getCombinedPeers();
+            const container = document.getElementById('peers-container');
+            const countBadge = document.getElementById('peer-count-badge');
+            countBadge.textContent = `${peers.length}명 연결됨`;
+            container.innerHTML = '';
+
+            peers.forEach(peer => {
+                const isSelected = peer.selected;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.onclick = () => {
+                    peer.selected = !peer.selected;
+                    renderPeers();
+                    saveSessionState();
+                };
+                card.className = `flex flex-col items-center p-2.5 rounded-2xl border transition-all ${
+                    isSelected 
+                    ? 'bg-white border-indigo-500 shadow-sm ring-2 ring-indigo-500/20' 
+                    : 'bg-white/60 border-slate-200 opacity-65 hover:opacity-100'
+                }`;
+
+                card.innerHTML = `
+                    <div class="relative mb-1.5">
+                        <div class="w-10 h-10 rounded-full ${peer.avatarColor} text-white font-extrabold text-sm flex items-center justify-center shadow-inner">
+                            ${peer.name.slice(0, 1)}
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
+                            isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-300 text-transparent'
+                        }">
+                            <i data-lucide="check" class="w-2.5 h-2.5"></i>
+                        </span>
+                    </div>
+                    <span class="text-xs font-extrabold text-slate-800 truncate w-full text-center">${peer.name}</span>
+                    <span class="text-[9px] text-slate-500 truncate w-full text-center">${peer.signal}</span>
+                `;
+                container.appendChild(card);
+            });
+
+            updateSelectedTargetLabel();
+            lucide.createIcons();
+        }
+
+        function updateSelectedTargetLabel() {
+            const allPeers = getCombinedPeers();
+            const selectedPeers = allPeers.filter(p => p.selected);
+            const label = document.getElementById('selected-target-label');
+            if (selectedPeers.length === 0) {
+                label.textContent = '전송 대상을 선택해주세요';
+                label.className = 'text-[11px] font-bold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-lg';
+            } else if (selectedPeers.length === allPeers.length) {
+                label.textContent = `전체 조원 (${selectedPeers.length}명)에게 전송`;
+                label.className = 'text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg';
+            } else {
+                const names = selectedPeers.map(p => p.name).join(', ');
+                label.textContent = `${names}에게 전송`;
+                label.className = 'text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg';
+            }
+        }
+
+        function rescanPeers() {
+            const icon = document.getElementById('scan-icon');
+            icon.classList.add('animate-spin');
+            broadcastPresence('PRESENCE_PING');
+            showToast(`#${appState.roomCode} 방에 접속된 주변 조원을 재탐색합니다...`);
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+                const count = getCombinedPeers().length;
+                showToast(`#${appState.roomCode} 방 조원 ${count}명 모두 연결 상태가 양호합니다.`);
+            }, 800);
+        }
+
+        function sendQuickTextNote(event) {
+            event.preventDefault();
+            const input = document.getElementById('quick-note-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const selectedPeers = getCombinedPeers().filter(p => p.selected);
+            if (selectedPeers.length === 0) {
+                showToast('받을 조원을 최소 1명 이상 선택해주세요!', 'warning');
+                return;
+            }
+
+            const noteFilename = `메모_${getCurrentTime().replace(':', '')}.txt`;
+            input.value = '';
+            startFileTransfer(noteFilename, formatFileSize(new Blob([text]).size), 'txt', null, text);
+        }
+
+        function startFileTransfer(filename, sizeStr, ext, realFileObj = null, dummyContent = '', batchFiles = null) {
+            const allPeers = getCombinedPeers();
+            const selectedPeers = allPeers.filter(p => p.selected);
+            if (selectedPeers.length === 0) {
+                showToast('파일을 받을 조원을 최소 1명 이상 선택해주세요!', 'warning');
+                return;
+            }
+
+            const progressBox = document.getElementById('transfer-progress-box');
+            const progressBar = document.getElementById('transfer-bar');
+            const progressPercent = document.getElementById('transfer-percent');
+            const progressFilename = document.getElementById('transfer-filename');
+            const progressSubtext = document.getElementById('transfer-subtext');
+
+            progressBox.classList.remove('hidden');
+            progressFilename.textContent = `${filename} 전송 중...`;
+            progressSubtext.textContent = `대상: ${selectedPeers.map(p => p.name).join(', ')} (#${appState.roomCode})`;
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 26) + 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    progressBar.style.width = '100%';
+                    progressPercent.textContent = '100%';
+                    progressFilename.textContent = `${filename} 전송 완료!`;
+
+                    setTimeout(() => {
+                        progressBox.classList.add('hidden');
+                        const receiverNames = selectedPeers.map(p => p.name).join(', ');
+                        const targetAll = selectedPeers.length === allPeers.length;
+
+                        if (batchFiles && batchFiles.length > 0) {
+                            [...batchFiles].reverse().forEach(f => {
+                                addHistoryItem({
+                                    id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                                    type: 'sent',
+                                    sender: appState.nickname,
+                                    receiver: receiverNames,
+                                    filename: f.filename,
+                                    size: f.size,
+                                    time: getCurrentTime(),
+                                    ext: f.ext,
+                                    fileObj: f.fileObj || null,
+                                    content: f.content || ''
+                                });
+                                if (syncChannel) {
+                                    syncChannel.postMessage({
+                                        type: 'FILE_TRANSFER',
+                                        senderId: deviceId,
+                                        senderName: appState.nickname,
+                                        roomCode: appState.roomCode,
+                                        targetNames: selectedPeers.map(p => p.name),
+                                        targetAll,
+                                        filename: f.filename,
+                                        size: f.size,
+                                        ext: f.ext,
+                                        content: f.content || ''
+                                    });
+                                }
+                            });
+                        } else {
+                            addHistoryItem({
+                                id: 'f_' + Date.now(),
+                                type: 'sent',
+                                sender: appState.nickname,
+                                receiver: receiverNames,
+                                filename: filename,
+                                size: sizeStr,
+                                time: getCurrentTime(),
+                                ext: ext,
+                                fileObj: realFileObj,
+                                content: dummyContent
+                            });
+                            if (syncChannel) {
+                                syncChannel.postMessage({
+                                    type: 'FILE_TRANSFER',
+                                    senderId: deviceId,
+                                    senderName: appState.nickname,
+                                    roomCode: appState.roomCode,
+                                    targetNames: selectedPeers.map(p => p.name),
+                                    targetAll,
+                                    filename: filename,
+                                    size: sizeStr,
+                                    ext: ext,
+                                    content: dummyContent
+                                });
+                            }
+                        }
+                        showToast(`'${filename}' 파일을 조원들에게 전송했습니다!`);
+                    }, 350);
+                } else {
+                    progressBar.style.width = `${progress}%`;
+                    progressPercent.textContent = `${progress}%`;
+                }
+            }, 120);
+        }
+
+        function addHistoryItem(item) {
+            appState.history.unshift(item);
+            saveSessionState();
+            renderHistory();
+        }
+
+        function filterHistory(filterType) {
+            appState.currentFilter = filterType;
+            ['all', 'received', 'sent'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                btn.className = t === filterType
+                    ? 'px-2.5 py-1 rounded-lg bg-white text-indigo-600 shadow-sm transition'
+                    : 'px-2.5 py-1 rounded-lg text-slate-500 transition';
+            });
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const listContainer = document.getElementById('file-history-list');
+            const filtered = appState.history.filter(item => {
+                if (appState.currentFilter === 'all') return true;
+                return item.type === appState.currentFilter;
+            });
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-6 text-slate-400 text-xs">
+                        <i data-lucide="folder-open" class="w-6 h-6 mx-auto mb-1.5 opacity-60"></i>
+                        표시할 파일 내역이 없습니다.
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            listContainer.innerHTML = filtered.map(item => {
+                const isReceived = item.type === 'received';
+                const badgeClass = isReceived 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                    : 'bg-blue-50 text-blue-700 border-blue-200';
+                const badgeText = isReceived ? `수신 • ${item.sender}` : `송신 → ${item.receiver}`;
+                const fileIcon = getFileIconHtml(item.ext);
+
+                return `
+                    <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 transition">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs">
+                                ${fileIcon}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-1.5 mb-0.5">
+                                    <span class="text-[10px] font-bold px-1.5 py-0.2 rounded border ${badgeClass} truncate max-w-[130px]">
+                                        ${badgeText}
+                                    </span>
+                                    <span class="text-[10px] text-slate-400">${item.time}</span>
+                                </div>
+                                <p class="text-xs font-extrabold text-slate-800 truncate">${item.filename}</p>
+                                <p class="text-[10px] text-slate-500">${item.size}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1.5 ml-2 shrink-0">
+                            <button onclick="shareHistoryFileNative('${item.id}')" title="다른 앱으로 공유하기" 
+                                class="w-9 h-9 rounded-xl bg-white hover:bg-slate-800 text-slate-600 hover:text-white border border-slate-200 flex items-center justify-center transition shadow-xs">
+                                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="downloadHistoryFile('${item.id}')" title="내 기기에 저장" 
+                                class="w-9 h-9 rounded-xl bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 hover:border-indigo-600 flex items-center justify-center transition shadow-xs">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        async function shareHistoryFileNative(itemId) {
+            const item = appState.history.find(i => i.id === itemId);
+            if (!item) return;
+
+            try {
+                const fileBlob = item.fileObj || new Blob([item.content || item.filename], { type: 'text/plain' });
+                const shareFile = new File([fileBlob], item.filename, { type: fileBlob.type || 'text/plain' });
+
+                if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                    await navigator.share({
+                        title: item.filename,
+                        text: `계남중 파일업다운에서 공유된 파일: ${item.filename}`,
+                        files: [shareFile]
+                    });
+                    showToast(`'${item.filename}' 파일을 다른 앱으로 공유했습니다.`);
+                } else if (navigator.share) {
+                    await navigator.share({
+                        title: item.filename,
+                        text: item.content || `계남중 파일업다운 공유 파일: ${item.filename}`
+                    });
+                } else {
+                    downloadHistoryFile(itemId);
+                    showToast('현재 브라우저에서는 파일 직접 공유 대신 기기 저장을 실행합니다.');
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    showToast('공유 창을 여는 중 문제가 발생했습니다.', 'warning');
+                }
+            }
+        }
+
+        function downloadHistoryFile(itemId) {
+            const item = appState.history.find(i => i.id === itemId);
+            if (!item) return;
+
+            try {
+                let blob;
+                if (item.fileObj) {
+                    blob = item.fileObj;
+                } else {
+                    const textData = item.content || `계남중 파일업다운 수신 파일: ${item.filename}`;
+                    blob = new Blob([textData], { type: 'text/plain;charset=utf-8' });
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = item.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`'${item.filename}' 파일을 기기에 다운로드했습니다.`);
+            } catch (e) {
+                showToast('파일 다운로드 중 오류가 발생했습니다.', 'warning');
+            }
+        }
+
+        // ==========================================
+        // 8. 유틸리티 함수
+        // ==========================================
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function getCurrentTime() {
+            const now = new Date();
+            return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
+
+        function getFileIconHtml(ext) {
+            switch (ext) {
+                case 'html': return '<i data-lucide="file-code-2" class="w-5 h-5 text-orange-500"></i>';
+                case 'py':
+                case 'js': return '<i data-lucide="file-code" class="w-5 h-5 text-blue-600"></i>';
+                case 'zip': return '<i data-lucide="file-archive" class="w-5 h-5 text-purple-600"></i>';
+                case 'pdf': return '<i data-lucide="file-text" class="w-5 h-5 text-rose-500"></i>';
+                case 'txt': return '<i data-lucide="file-type" class="w-5 h-5 text-slate-600"></i>';
+                case 'png':
+                case 'jpg':
+                case 'jpeg':
+                case 'svg': return '<i data-lucide="image" class="w-5 h-5 text-emerald-500"></i>';
+                default: return '<i data-lucide="file" class="w-5 h-5 text-indigo-500"></i>';
+            }
+        }
+
+        let toastTimer;
+        function showToast(message, type = 'success') {
+            const toastBox = document.getElementById('toast-box');
+            const toastMsg = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.textContent = message;
+            toastIcon.setAttribute('data-lucide', type === 'warning' ? 'alert-circle' : 'check-circle-2');
+            toastIcon.className = type === 'warning' 
+                ? 'w-4 h-4 text-amber-400 shrink-0'
+                : 'w-4 h-4 text-emerald-400 shrink-0';
+
+            toastBox.classList.remove('hidden');
+            lucide.createIcons();
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toastBox.classList.add('hidden');
+            }, 3200);
+        }
+
+        // 앱 초기화 실행
+        window.addEventListener('pagehide', () => {
+            if (appState.isConnected) {
+                broadcastPresence('PRESENCE_LEAVE');
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initPwaInfrastructure();
+            initRealtimeSyncChannel();
+            setupBrowserNavigationGuard();
+            const restored = restoreSessionState();
+            if (restored) {
+                joinRoom(true);
+            }
+            handleIncomingWebShareTarget();
+            lucide.createIcons();
+        });
+    </script>
 </body>
 </html>
