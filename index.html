@@ -59,7 +59,7 @@
   <div class="w-full max-w-[440px] bg-[#f8f9fc] sm:rounded-[34px] shadow-2xl min-h-screen sm:min-h-[780px] flex flex-col justify-between overflow-hidden border border-slate-200/80">
 
     <!-- ========================================== -->
-    <!-- 1. 로그인 / 방 접속 화면 (요청하신 원본 디자인) -->
+    <!-- 1. 로그인 / 방 접속 화면 (원본 디자인) -->
     <!-- ========================================== -->
     <div id="loginScreen" class="flex-1 flex flex-col justify-between p-6">
       <!-- 상단 배지 & 홈 화면 설치 버튼 -->
@@ -100,6 +100,7 @@
             </button>
           </div>
           <input id="inputCode" type="tel" inputmode="numeric" maxlength="4" placeholder="1234"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
             class="w-full py-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 focus:border-blue-500 focus:bg-white text-2xl font-black text-indigo-600 tracking-[0.45em] text-center focus:outline-none transition" />
         </div>
 
@@ -124,7 +125,7 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- 2. 접속 완료 메인 화면 (요청하신 원본 디자인) -->
+    <!-- 2. 접속 완료 메인 화면 (원본 디자인) -->
     <!-- ========================================== -->
     <div id="mainScreen" class="hidden flex-1 flex flex-col">
       <!-- 상단 블루 그라데이션 헤더 -->
@@ -295,7 +296,9 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1">변경할 4자리 방 코드</label>
-          <input id="editCodeInput" type="tel" inputmode="numeric" maxlength="4" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-base font-extrabold tracking-[0.3em] text-center" />
+          <input id="editCodeInput" type="tel" inputmode="numeric" maxlength="4"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-base font-extrabold tracking-[0.3em] text-center" />
         </div>
       </div>
       <div class="flex gap-2 pt-1">
@@ -373,7 +376,6 @@
     let peer = null;
     let isHost = false;
     let hostConn = null;
-    // key: deviceId -> { conn, peerId, name, deviceType, lastSeen }
     let membersMap = {};
     let heartbeatInterval = null;
     let stagedFiles = [];
@@ -656,7 +658,6 @@
 
     function joinAsGuest(roomHostId) {
       isHost = false;
-      // 게스트는 매번 고유 임시 소켓으로 즉시 접속하고 내부 MY_DEVICE_ID로 중복 계정 방지
       peer = new Peer({ debug: 0 });
 
       peer.on('open', () => {
@@ -672,7 +673,6 @@
             deviceType: state.deviceType
           });
 
-          // 4초마다 생존 신호(ping) 전송
           heartbeatInterval = setInterval(() => {
             if (conn.open) {
               conn.send({ type: 'ping', deviceId: MY_DEVICE_ID, name: state.name, deviceType: state.deviceType });
@@ -714,7 +714,6 @@
       if (data.type === 'join' || data.type === 'ping') {
         if (data.deviceId === MY_DEVICE_ID) return;
         const isNew = !membersMap[data.deviceId];
-        // 이전 동일 기기 소켓이 열려있다면 닫고 새 소켓으로 덮어쓰기 (중복 방지 핵심)
         if (!isNew && membersMap[data.deviceId].conn && membersMap[data.deviceId].conn !== conn) {
           try { membersMap[data.deviceId].conn.close(); } catch(e) {}
         }
@@ -1096,10 +1095,14 @@
 
     function copyText(idx) {
       const item = state.history[idx];
-      if (item && item.text) {
-        navigator.clipboard.writeText(item.text);
-        showToast('클립보드에 복사되었습니다.');
-      }
+      if (!item || !item.text) return;
+      const temp = document.createElement('textarea');
+      temp.value = item.text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      showToast('클립보드에 복사되었습니다.');
     }
 
     function showToast(msg) {
