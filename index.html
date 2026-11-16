@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.3)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.3)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.3';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.4)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.4)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.4';
 -->
 <html lang="ko">
 <head>
@@ -324,11 +324,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.3 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.4 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.3</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.4</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -547,7 +547,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.3';
+        const APP_VERSION = 'v3.4';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1086,6 +1086,7 @@
                 time: getCurrentTime(),
                 ext: msg.ext,
                 fileObj: blob,
+                saved: false,
                 content: blob ? '' : (msg.content || '')
             });
             appendDebugLog(`파일 수신 완료: ${msg.filename} (보낸이: ${msg.senderName})`);
@@ -2448,7 +2449,59 @@
             }
         }
 
+        // ==========================================
+        // 파일 내용 보관소 (IndexedDB): 앱을 껐다 켜거나 화면이 다시 만들어져도 받은 파일이 사라지지 않게 함
+        // ==========================================
+        const FILE_DB_NAME = 'gyenam_files_db';
+        let fileDbPromise = null;
+        function openFileDb() {
+            if (fileDbPromise) return fileDbPromise;
+            fileDbPromise = new Promise((resolve) => {
+                try {
+                    const req = indexedDB.open(FILE_DB_NAME, 1);
+                    req.onupgradeneeded = () => { req.result.createObjectStore('blobs'); };
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => resolve(null);
+                } catch (e) { resolve(null); }
+            });
+            return fileDbPromise;
+        }
+        async function idbRun(mode, fn) {
+            const db = await openFileDb();
+            if (!db) return null;
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction('blobs', mode);
+                    const st = tx.objectStore('blobs');
+                    const r = fn(st);
+                    tx.oncomplete = () => resolve(r ? r.result : undefined);
+                    tx.onerror = tx.onabort = () => resolve(null);
+                } catch (e) { resolve(null); }
+            });
+        }
+        function idbPutBlob(id, blob) { return idbRun('readwrite', st => st.put(blob, id)); }
+        function idbGetBlob(id) { return idbRun('readonly', st => st.get(id)); }
+        function idbDeleteBlob(id) { return idbRun('readwrite', st => st.delete(id)); }
+        // 현재 내역에 없는 보관 파일 정리 (앱 시작 시)
+        async function idbPruneOrphans() {
+            const db = await openFileDb();
+            if (!db) return;
+            const keep = new Set(appState.history.map(i => i.id));
+            const keys = await idbRun('readonly', st => st.getAllKeys());
+            if (Array.isArray(keys)) keys.forEach(k => { if (!keep.has(k)) idbDeleteBlob(k); });
+        }
+        // 항목의 파일 내용: 메모리에 있으면 그것, 없으면 보관소에서 읽음 (텍스트 메모는 content)
+        async function getItemBlob(item) {
+            if (!item) return null;
+            if (item.fileObj) return item.fileObj;
+            const b = await idbGetBlob(item.id);
+            if (b instanceof Blob) { item.fileObj = b; return b; }
+            if (item.content) return new Blob([item.content], { type: 'text/plain;charset=utf-8' });
+            return null;
+        }
+
         function addHistoryItem(item) {
+            if (item.fileObj) idbPutBlob(item.id, item.fileObj);
             appState.history.unshift(item);
             saveSessionState();
             renderHistory();
@@ -2512,7 +2565,7 @@
                                     <span class="text-[10px] text-slate-400">${escapeHtml(item.time)}</span>
                                 </div>
                                 <p class="text-xs font-extrabold text-slate-800 truncate">${escapeHtml(item.filename)}</p>
-                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)} <span class="text-slate-400">· 눌러서 열기</span></p>
+                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)} <span class="text-slate-400">· 눌러서 열기</span>${isReceived ? (item.saved ? ' <span class="text-emerald-600 font-bold">· 저장됨</span>' : ' <span class="text-amber-600 font-bold">· 저장 전</span>') : ''}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-1 ml-2 shrink-0">
@@ -2541,7 +2594,7 @@
             if (!item) return;
 
             try {
-                const fileBlob = item.fileObj || new Blob([item.content || item.filename], { type: 'text/plain' });
+                const fileBlob = (await getItemBlob(item)) || new Blob([item.filename], { type: 'text/plain' });
                 if (IS_NATIVE) {
                     const saved = await saveBlobNative(fileBlob, item.filename, 'cache');
                     await getNativePlugin('Share').share({ title: item.filename, dialogTitle: '다른 앱으로 공유', files: [saved.uri] });
@@ -2596,11 +2649,11 @@
         async function openHistoryFile(itemId) {
             const item = appState.history.find(i => i.id === itemId);
             if (!item) return;
-            if (!item.fileObj && !item.content) {
-                showToast('이 항목은 파일 내용이 남아 있지 않아 열 수 없습니다. (앱을 껐다 켜면 파일 내용은 지워집니다)', 'warning');
+            const blob = await getItemBlob(item);
+            if (!blob) {
+                showToast('이 항목은 파일 내용이 남아 있지 않아 열 수 없습니다.', 'warning');
                 return;
             }
-            const blob = item.fileObj || new Blob([item.content], { type: 'text/plain;charset=utf-8' });
             const mime = guessMime(item.filename, blob.type);
             try {
                 if (IS_NATIVE) {
@@ -2630,6 +2683,7 @@
             const idx = appState.history.findIndex(i => i.id === itemId);
             if (idx < 0) return;
             const [removed] = appState.history.splice(idx, 1);
+            idbDeleteBlob(removed.id);
             saveSessionState();
             renderHistory();
             showToast(`'${removed.filename}' 내역을 삭제했습니다.`);
@@ -2642,28 +2696,32 @@
             if (count === 0) return;
             const label = f === 'received' ? '수신 내역' : f === 'sent' ? '송신 내역' : '주고받은 내역';
             if (!confirm(`${label} ${count}개를 모두 삭제할까요?\n(이미 기기에 저장한 파일은 지워지지 않습니다)`)) return;
+            appState.history.filter(matches).forEach(i => idbDeleteBlob(i.id));
             appState.history = appState.history.filter(i => !matches(i));
             saveSessionState();
             renderHistory();
             showToast(`${label} ${count}개를 삭제했습니다.`);
         }
 
-        async function downloadHistoryFile(itemId) {
-            const item = appState.history.find(i => i.id === itemId);
-            if (!item) return;
+        // fallbackItem: 내역에서 이미 지워졌어도 알림 팝업이 들고 있는 항목으로 계속 받을 수 있게 함
+        async function downloadHistoryFile(itemId, fallbackItem) {
+            const item = appState.history.find(i => i.id === itemId) || fallbackItem;
+            if (!item) {
+                showToast('받은 파일을 찾지 못했습니다. (내역에서 삭제되었거나 앱이 다시 시작되었습니다)', 'warning');
+                return false;
+            }
 
             try {
-                let blob;
-                if (item.fileObj) {
-                    blob = item.fileObj;
-                } else {
-                    const textData = item.content || `계남중 파일업다운 수신 파일: ${item.filename}`;
-                    blob = new Blob([textData], { type: 'text/plain;charset=utf-8' });
+                const blob = await getItemBlob(item);
+                if (!blob) {
+                    showToast('파일 내용이 남아 있지 않아 저장할 수 없습니다. 보낸 사람에게 다시 요청해주세요.', 'warning');
+                    return false;
                 }
                 if (IS_NATIVE) {
                     const saved = await saveBlobNative(blob, item.filename, 'downloads');
+                    markItemSaved(item);
                     showToast(`'${saved.name || item.filename}' 저장 완료! 내 파일 → 다운로드 → 계남중파일업다운 폴더에서 확인하세요.`);
-                    return;
+                    return true;
                 }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -2672,23 +2730,34 @@
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                markItemSaved(item);
                 showToast(`'${item.filename}' 다운로드 완료! 브라우저의 '다운로드' 폴더에서 확인하세요. (PC 크롬: Ctrl+J)`);
+                return true;
             } catch (e) {
                 appendDebugLog('파일 저장 오류: ' + errText(e));
                 showToast('파일 다운로드 중 오류가 발생했습니다.', 'warning');
+                return false;
             }
+        }
+
+        function markItemSaved(item) {
+            item.saved = true;
+            saveSessionState();
+            renderHistory();
         }
 
         // ==========================================
         // 7-1. 파일 수신 알림 (앱 안 팝업 + 백그라운드 시스템 알림 + 다운로드 버튼)
         // ==========================================
         let incomingPopupItemId = null;
+        let incomingPopupItem = null;
         let incomingPopupTimer = null;
 
         function showIncomingFilePopup(item, autoHide = true) {
             if (!item) return;
             incomingPopupItemId = item.id;
+            incomingPopupItem = item;
             document.getElementById('incoming-popup-title').textContent = `📩 ${item.sender}님이 파일을 보냈습니다`;
             document.getElementById('incoming-popup-file').textContent = `${item.filename} (${item.size})`;
             document.getElementById('incoming-popup').classList.remove('hidden');
@@ -2704,9 +2773,10 @@
             document.getElementById('incoming-popup').classList.add('hidden');
         }
 
-        function downloadFromIncomingPopup() {
-            if (incomingPopupItemId) downloadHistoryFile(incomingPopupItemId);
+        async function downloadFromIncomingPopup() {
+            const id = incomingPopupItemId, it = incomingPopupItem;
             closeIncomingPopup();
+            if (id) await downloadHistoryFile(id, it);
         }
 
         async function showSystemNotification(item) {
@@ -2757,11 +2827,11 @@
             const extra = (ev && ev.notification && ev.notification.extra) || {};
             const item = appState.history.find(i => i.id === extra.itemId);
             if (!item) {
-                showToast('받은 파일을 찾지 못했습니다. 받은 파일 내역을 확인해주세요.', 'warning');
+                showToast('받은 파일을 찾지 못했습니다. (내역에서 삭제되었거나 앱이 다시 시작되었습니다)', 'warning');
                 return;
             }
             showIncomingFilePopup(item, false);
-            if (ev.actionId === 'download') downloadHistoryFile(item.id);
+            if (ev.actionId === 'download') downloadHistoryFile(item.id, item);
         }
 
         // ==========================================
@@ -2883,6 +2953,7 @@
                     joinRoom(true);
                 }
             }
+            idbPruneOrphans();
             if (IS_NATIVE) {
                 pullNativeShared();
                 setTimeout(fetchUpdateState, 3000);
