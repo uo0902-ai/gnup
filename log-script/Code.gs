@@ -21,6 +21,7 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     if (body.token !== TOKEN) return out_('bad token');
     var ss = SpreadsheetApp.getActive();
+    if (ss.getSpreadsheetTimeZone() !== TZ) ss.setSpreadsheetTimeZone(TZ);
     var log = sheet_(ss, '로그', LOG_HEAD);
     var dev = sheet_(ss, '기기목록', DEV_HEAD);
     var rows = body.rows || [];
@@ -48,6 +49,16 @@ function sheet_(ss, name, head) {
   return sh;
 }
 
+var DATE_FMT = 'yyyy-MM-dd HH:mm:ss';
+
+// 글자는 '일반 글자'로 기록 (v1_7.md 같은 파일명이 자동으로 링크가 되지 않게 함)
+function put_(sh, row, formats) {
+  var rg = sh.getRange(sh.getLastRow() + 1, 1, 1, row.length);
+  rg.setNumberFormats([formats]);
+  rg.setValues([row]);
+  return rg;
+}
+
 function fmt_(ms) { return Utilities.formatDate(new Date(ms || Date.now()), TZ, 'yyyy-MM-dd HH:mm:ss'); }
 
 // 기기번호 부여: 안드로이드ID가 있으면 그것, 없으면 설치ID로 같은 기기를 알아봄
@@ -63,16 +74,15 @@ function deviceNo_(dev, r) {
   var nick = r.nick || '';
   if (hit < 0) {
     var no = maxNo + 1;
-    dev.appendRow([no, key, fmt_(r.t), fmt_(r.t), r.platform || '', r.model || '', nick]);
+    put_(dev, [no, key, new Date(r.t || Date.now()), new Date(r.t || Date.now()), r.platform || '', r.model || '', nick],
+         ['0', '@', DATE_FMT, DATE_FMT, '@', '@', '@']);
     return { no: no, nickCount: nick ? 1 : 0 };
   }
   var rowNo = hit + 2;
   var nicks = String(data[hit][6] || '').split(', ').filter(function (x) { return x; });
   if (nick && nicks.indexOf(nick) < 0) nicks.push(nick);
-  dev.getRange(rowNo, 4).setValue(fmt_(r.t));
-  dev.getRange(rowNo, 5).setValue(r.platform || data[hit][4]);
-  dev.getRange(rowNo, 6).setValue(r.model || data[hit][5]);
-  dev.getRange(rowNo, 7).setValue(nicks.join(', '));
+  dev.getRange(rowNo, 4).setNumberFormat(DATE_FMT).setValue(new Date(r.t || Date.now()));
+  dev.getRange(rowNo, 5, 1, 3).setNumberFormat('@').setValues([[r.platform || data[hit][4], r.model || data[hit][5], nicks.join(', ')]]);
   return { no: data[hit][0], nickCount: nicks.length };
 }
 
@@ -89,7 +99,8 @@ function addRow_(log, dev, r) {
       var n = 1;
       for (var i = 0; i < recent.length; i++) {
         if (recent[i][1] === d.no && recent[i][6] === '송신') {
-          var t = new Date(String(recent[i][0]).replace(' ', 'T') + '+09:00').getTime();
+          var t0 = recent[i][0];
+          var t = (t0 instanceof Date) ? t0.getTime() : new Date(String(t0).replace(' ', 'T') + '+09:00').getTime();
           if (t >= cutoff) n++;
         }
       }
@@ -98,11 +109,24 @@ function addRow_(log, dev, r) {
   }
   if (d.nickCount >= NICK_LIMIT) flags.push('닉네임 여러 개');
   if (/^실패/.test(String(r.result || ''))) flags.push('전송 실패');
-  var row = [fmt_(r.t), d.no, r.nick || '', r.platform || '', r.model || '', r.room || '', r.dir || '', r.peer || '',
+  var row = [new Date(r.t || Date.now()), d.no, r.nick || '', r.platform || '', r.model || '', r.room || '', r.dir || '', r.peer || '',
              r.kind || '', r.filename || '', r.size || '', r.result || '', r.text || '', flags.join(' / '),
              r.deviceId || '', r.installId || '', r.androidId || '', r.appVer || '', r.transferId || ''];
-  log.appendRow(row);
-  if (flags.length) {
-    log.getRange(log.getLastRow(), 1, 1, LOG_HEAD.length).setBackground('#fee2e2');
-  }
+  var rg = put_(log, row, [DATE_FMT, '0', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@', '@']);
+  if (flags.length) rg.setBackground('#fee2e2');
+}
+
+/**
+ * (한 번만 실행) 이미 쌓인 기록에서 파일명 등에 걸린 링크를 없애고 일반 글자로 바꿈
+ * Apps Script 위쪽 함수 선택 칸에서 '링크없애기'를 고르고 [실행]
+ */
+function 링크없애기() {
+  var sh = SpreadsheetApp.getActive().getSheetByName('로그');
+  if (!sh || sh.getLastRow() < 2) return;
+  var n = sh.getLastRow() - 1;
+  [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].forEach(function (c) {
+    var rg = sh.getRange(2, c, n, 1);
+    var v = rg.getValues();
+    rg.clearFormat().setNumberFormat('@').setValues(v);
+  });
 }
