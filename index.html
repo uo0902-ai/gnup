@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v1.9)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v1.9)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v1.9';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v2.2)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v2.2)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v2.2';
 -->
 <html lang="ko">
 <head>
@@ -14,6 +14,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="계남중 파일업다운">
     <title>계남중 파일업다운</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -93,9 +95,7 @@
 
             <!-- 중앙 앱 타이틀 -->
             <div class="my-4 text-center">
-                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-200 mb-4 animate-float">
-                    <i data-lucide="send" class="w-8 h-8"></i>
-                </div>
+                <img src="icon-192.png" alt="계남중 파일업다운 아이콘" class="inline-block w-16 h-16 rounded-2xl shadow-lg shadow-indigo-200 mb-4 animate-float">
                 <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">계남중 파일업다운</h1>
                 <p class="text-xs text-slate-500 mt-1.5 leading-relaxed">
                     이름과 4자리 숫자 코드를 입력하면<br>같은 방 조원들과 즉시 파일을 주고받을 수 있습니다.
@@ -161,9 +161,7 @@
             <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 pt-4 pb-4 rounded-b-3xl shadow-md z-20 shrink-0">
                 <div class="flex items-center justify-between mb-3">
                     <div onclick="handleHeaderTitleTap()" class="flex items-center gap-2 cursor-pointer select-none">
-                        <div class="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center">
-                            <i data-lucide="send" class="w-4 h-4 text-white"></i>
-                        </div>
+                        <img src="icon-192.png" alt="" class="w-7 h-7 rounded-lg">
                         <span class="font-extrabold text-base tracking-tight">계남중 파일업다운</span>
                     </div>
 
@@ -260,7 +258,7 @@
                                     <span class="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold">최신순</span>
                                 </div>
                                 <p class="text-[11px] font-semibold text-indigo-700 truncate mt-0.5">
-                                    /Internal Storage/Download/Gemini/
+                                    내 기기에서 파일을 골라 보냅니다
                                 </p>
                             </div>
                         </div>
@@ -331,11 +329,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v1.9 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v2.2 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v1.9</span>
+                <span id="footer-version-text" class="text-white">앱버전 v2.2</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -353,7 +351,7 @@
                 <div class="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
                         <h3 class="text-base font-extrabold text-slate-900">파일 선택 및 업로드</h3>
-                        <p class="text-[11px] text-slate-500">제미나이에서 받은 파일 폴더가 기본 경로로 열렸습니다</p>
+                        <p class="text-[11px] text-slate-500">내 기기에서 고른 파일이 최신순으로 표시됩니다</p>
                     </div>
                     <button onclick="closeGeminiFolderPicker()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
                         <i data-lucide="x" class="w-4 h-4"></i>
@@ -364,12 +362,7 @@
                 <div class="px-4 py-2.5 bg-indigo-50/80 border-b border-indigo-100 flex items-center justify-between gap-2 shrink-0">
                     <div class="flex items-center gap-1 text-[11px] font-bold text-indigo-800 bg-white px-2.5 py-1.5 rounded-xl border border-indigo-200/80 min-w-0 flex-1 overflow-x-auto no-scrollbar">
                         <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
-                        <span class="text-slate-400">/</span>
-                        <button onclick="switchPickerFolder('Download')" class="hover:underline text-slate-600 shrink-0">Download</button>
-                        <span class="text-slate-400">/</span>
-                        <button onclick="switchPickerFolder('Gemini')" id="current-folder-badge" class="text-indigo-700 font-extrabold flex items-center gap-1 shrink-0">
-                            <i data-lucide="sparkles" class="w-3 h-3"></i> Gemini
-                        </button>
+                        <span id="current-folder-badge" class="text-indigo-700 font-extrabold shrink-0">내 기기에서 고른 파일</span>
                     </div>
 
                     <button onclick="togglePickerSortOrder()" id="picker-sort-btn" class="px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white text-[11px] font-bold flex items-center gap-1 shrink-0 shadow-xs active:scale-95 transition">
@@ -379,7 +372,7 @@
                 </div>
 
                 <div class="px-5 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-                    <span class="truncate">경로: <code id="full-path-text" class="text-indigo-600 font-semibold">/Internal Storage/Download/Gemini/</code></span>
+                    <span class="truncate">위치: <code id="full-path-text" class="text-indigo-600 font-semibold">기기에서 직접 선택</code></span>
                     <span id="sort-status-hint" class="font-bold text-emerald-600 shrink-0 ml-2">● 최근 날짜 상단 정렬됨</span>
                 </div>
 
@@ -564,6 +557,27 @@
         <!-- ========================================== -->
         <!-- 토스트 알림 메시지 박스                     -->
         <!-- ========================================== -->
+        <div id="incoming-popup" class="hidden absolute top-4 left-4 right-4 z-[60] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
+            <div class="flex items-start gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <i data-lucide="inbox" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <p id="incoming-popup-title" class="text-xs font-extrabold truncate">파일이 도착했습니다</p>
+                    <p id="incoming-popup-file" class="text-[11px] text-slate-500 truncate mt-0.5"></p>
+                </div>
+                <button type="button" onclick="closeIncomingPopup()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+            <div class="mt-2.5 flex gap-2">
+                <button type="button" onclick="downloadFromIncomingPopup()" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i> 다운로드
+                </button>
+                <button type="button" onclick="closeIncomingPopup()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">닫기</button>
+            </div>
+        </div>
+
         <div id="toast-box" class="hidden absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
             <i id="toast-icon" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
             <span id="toast-message" class="flex-1 leading-snug">알림 메시지</span>
@@ -575,12 +589,15 @@
         // ==========================================
         // 0. 앱 버전 관리 및 원클릭 업데이트 상수
         // ==========================================
-        const APP_VERSION = 'v1.9';
+        const APP_VERSION = 'v2.2';
         const VERSION_STORAGE_KEY = 'gyenam_app_version_installed';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
         let screenLockTimer = null;
+        const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60분 동안 사용이 없으면 자동 연결 끊김
+        let lastActivityAt = Date.now();
+        let idleCheckTimer = null;
         let pendingExternalShareItem = null;
         let deferredInstallPrompt = null;
         let swRegistration = null;
@@ -634,63 +651,9 @@
             }
 
             try {
-                const manifestObj = {
-                    name: '계남중 파일업다운',
-                    short_name: '계남중 파일업다운',
-                    description: '같은 4자리 코드를 입력한 조원들과 즉시 파일을 주고받는 웹앱',
-                    start_url: window.location.href,
-                    display: 'standalone',
-                    background_color: '#f8fafc',
-                    theme_color: '#3730a3',
-                    icons: [
-                        {
-                            src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='44' fill='%233730a3'/%3E%3Cpath d='M144 48L48 92l36 14 44-38-32 44 26 24 22-88z' fill='%23ffffff'/%3E%3C/svg%3E",
-                            sizes: '192x192',
-                            type: 'image/svg+xml',
-                            purpose: 'any maskable'
-                        }
-                    ],
-                    share_target: {
-                        action: window.location.pathname,
-                        method: 'GET',
-                        enctype: 'application/x-www-form-urlencoded',
-                        params: {
-                            title: 'title',
-                            text: 'text',
-                            url: 'url'
-                        }
-                    }
-                };
-
-                const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
-                const manifestUrl = URL.createObjectURL(manifestBlob);
-                const linkEl = document.createElement('link');
-                linkEl.rel = 'manifest';
-                linkEl.href = manifestUrl;
-                document.head.appendChild(linkEl);
-
                 if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
-                    const swCode = `
-                        const CACHE_NAME = 'gyenam-fileshare-${APP_VERSION}';
-                        self.addEventListener('install', (event) => {
-                            self.skipWaiting();
-                        });
-                        self.addEventListener('activate', (event) => {
-                            event.waitUntil(
-                                caches.keys().then((keys) => Promise.all(
-                                    keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-                                )).then(() => self.clients.claim())
-                            );
-                        });
-                        self.addEventListener('fetch', (event) => {
-                            event.respondWith(
-                                fetch(event.request).catch(() => caches.match(event.request))
-                            );
-                        });
-                    `;
-                    const swBlob = new Blob([swCode], { type: 'application/javascript' });
-                    const swUrl = URL.createObjectURL(swBlob);
-                    navigator.serviceWorker.register(swUrl).then((reg) => {
+                    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+                    navigator.serviceWorker.register('./sw.js', { scope: './' }).then((reg) => {
                         swRegistration = reg;
                         reg.addEventListener('updatefound', () => {
                             const newWorker = reg.installing;
@@ -702,7 +665,9 @@
                                 });
                             }
                         });
-                    }).catch(() => {});
+                    }).catch((err) => {
+                        appendDebugLog('서비스워커 등록 실패(sw.js 업로드 확인): ' + (err && err.message ? err.message : err));
+                    });
                 }
             } catch (err) {
                 console.warn('PWA 초기화 건너뜀:', err);
@@ -1006,6 +971,7 @@
         }
 
         function handleFileTransferPacket(msg) {
+            markActivity();
             if (isRoomHost) relayFileTransfer(msg);
 
             const isTarget = !msg.targetIds || msg.targetIds.includes(deviceId) || msg.targetAll;
@@ -1028,7 +994,7 @@
                 content: blob ? '' : (msg.content || '')
             });
             appendDebugLog(`파일 수신 완료: ${msg.filename} (보낸이: ${msg.senderName})`);
-            showToast(`📩 ${msg.senderName}님이 '${msg.filename}' 파일을 보냈습니다!`);
+            notifyIncomingFile(appState.history[0]);
         }
 
         // ---- 방장 / 게스트 연결 ----
@@ -1279,13 +1245,20 @@
         }
 
         function initPageLeaveNotifier() {
-            window.addEventListener('pagehide', () => {
-                if (appState.isConnected) {
+            window.addEventListener('pagehide', (e) => {
+                // 앱이 백그라운드로 가거나 잠시 얼려지는 경우(persisted)에는 퇴장 신호를 보내지 않음
+                if (appState.isConnected && !e.persisted) {
                     dispatchNetworkMessage({
                         type: 'PRESENCE_LEAVE',
                         senderId: deviceId,
                         roomCode: appState.roomCode
                     });
+                }
+            });
+            window.addEventListener('pageshow', (e) => {
+                if (e.persisted && appState.isConnected) {
+                    appendDebugLog('백그라운드 복귀 → 연결 상태 확인');
+                    connectPeerRoomNetwork(appState.roomCode);
                 }
             });
             window.addEventListener('online', () => {
@@ -1361,6 +1334,48 @@
             return false;
         }
 
+        function markActivity() {
+            lastActivityAt = Date.now();
+        }
+
+        function idleDisconnect() {
+            if (!appState.isConnected) return;
+            try {
+                broadcastPresence('PRESENCE_LEAVE');
+            } catch (e) {}
+            teardownRoomNetwork();
+            appState.isConnected = false;
+            liveSyncedPeers = {};
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            ['gemini-picker-modal', 'edit-profile-modal', 'external-share-modal', 'pwa-guide-modal', 'leave-confirm-modal'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            lucide.createIcons();
+            showToast('60분 동안 사용이 없어 연결이 자동으로 끊어졌습니다. 다시 접속해주세요.', 'warning');
+        }
+
+        function checkIdleTimeout() {
+            if (appState.isConnected && Date.now() - lastActivityAt >= IDLE_TIMEOUT_MS) {
+                idleDisconnect();
+                return true;
+            }
+            return false;
+        }
+
+        function setupIdleAutoDisconnect() {
+            ['click', 'touchend', 'keydown'].forEach(evName => {
+                window.addEventListener(evName, markActivity, { capture: true, passive: true });
+            });
+            clearInterval(idleCheckTimer);
+            idleCheckTimer = setInterval(checkIdleTimeout, 30000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) checkIdleTimeout();
+            });
+        }
+
         function setupScreenLockAutoTerminate() {
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) {
@@ -1373,7 +1388,7 @@
                     }, SCREEN_LOCK_TIMEOUT_MS);
                 } else {
                     checkScreenLockTimeoutOnResume();
-                    if (appState.isConnected) {
+                    if (appState.isConnected && !checkIdleTimeout()) {
                         appendDebugLog('화면 복귀 → 연결 상태 확인');
                         connectPeerRoomNetwork(appState.roomCode);
                     }
@@ -1388,63 +1403,7 @@
         // ==========================================
         // 3. 앱 상태 및 세션 영속성 (localStorage + popstate 뒤로가기 방어)
         // ==========================================
-        const defaultGeminiFiles = [
-            {
-                id: 'gf_1',
-                folder: 'Gemini',
-                filename: 'vibe_coding_v2.html',
-                size: '24.6 KB',
-                ext: 'html',
-                timestamp: Date.now() - 1000 * 60 * 2,
-                dateLabel: '오늘 14:19 (방금 받음)',
-                selected: true,
-                content: '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>제미나이 생성 파일</title></head><body><h1>계남중학교 조별 작업물</h1></body></html>'
-            },
-            {
-                id: 'gf_2',
-                folder: 'Gemini',
-                filename: 'gemini_generated_ui.zip',
-                size: '1.2 MB',
-                ext: 'zip',
-                timestamp: Date.now() - 1000 * 60 * 18,
-                dateLabel: '오늘 14:03',
-                selected: false,
-                content: 'PK... 제미나이 다운로드 폴더 UI 압축 파일'
-            },
-            {
-                id: 'gf_3',
-                folder: 'Gemini',
-                filename: '발표자료.pdf',
-                size: '840 KB',
-                ext: 'pdf',
-                timestamp: Date.now() - 1000 * 60 * 55,
-                dateLabel: '오늘 13:26',
-                selected: false,
-                content: '계남중학교 조별 발표 자료 PDF 문서'
-            },
-            {
-                id: 'gf_4',
-                folder: 'Gemini',
-                filename: '앱아이콘_시안.png',
-                size: '380 KB',
-                ext: 'png',
-                timestamp: Date.now() - 1000 * 60 * 60 * 22,
-                dateLabel: '어제 16:10',
-                selected: false,
-                content: '앱 아이콘 고해상도 시안 데이터'
-            },
-            {
-                id: 'df_1',
-                folder: 'Download',
-                filename: '수행평가_안내문.pdf',
-                size: '890 KB',
-                ext: 'pdf',
-                timestamp: Date.now() - 1000 * 60 * 60 * 48,
-                dateLabel: '11월 10일 10:15',
-                selected: false,
-                content: '계남중학교 정보 교과 조별 과제 안내문'
-            }
-        ];
+        const defaultGeminiFiles = []; // 가짜 샘플 파일 제거: 내 기기에서 직접 고른 파일만 표시
 
         const defaultHistory = [];
 
@@ -1507,13 +1466,31 @@
             return false;
         }
 
+        let navGuardArmed = false;
+        function pushNavGuardEntry() {
+            try {
+                window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+                navGuardArmed = true;
+            } catch (e) {}
+        }
+
         function setupBrowserNavigationGuard() {
             if (!window.history.state || !window.history.state.gyenamGuard) {
                 window.history.replaceState({ gyenamGuard: 'base' }, '', window.location.href);
-                window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+                pushNavGuardEntry();
+            } else {
+                navGuardArmed = true;
             }
 
+            // 크롬은 터치 없이 쌓은 기록은 뒤로가기 때 건너뛰므로, 실제 터치/클릭 때 방어 기록을 다시 채움
+            ['click', 'touchend', 'keydown'].forEach(evName => {
+                window.addEventListener(evName, () => {
+                    if (!navGuardArmed && appState.isConnected) pushNavGuardEntry();
+                }, { capture: true, passive: true });
+            });
+
             window.addEventListener('popstate', () => {
+                navGuardArmed = false;
                 const modals = [
                     'gemini-picker-modal',
                     'edit-profile-modal',
@@ -1531,7 +1508,8 @@
                 });
 
                 if (appState.isConnected) {
-                    window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+                    pushNavGuardEntry();
+                    navGuardArmed = false; // 다음 터치 때 한 번 더 채워 넣음
                     broadcastPresence('PRESENCE_PING');
                     if (!closedAnyModal) {
                         showToast(`#${appState.roomCode} 방 접속이 유지되고 있습니다. 나가려면 우측 상단 [방 나가기]를 눌러주세요.`);
@@ -1650,7 +1628,8 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
 
-            window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
+            pushNavGuardEntry();
+            markActivity();
             connectPeerRoomNetwork(appState.roomCode);
             broadcastPresence('PRESENCE_PING');
 
@@ -1659,7 +1638,11 @@
             lucide.createIcons();
 
             if (!isAutoRestore) {
+                requestNotifyPermission();
                 showToast(`#${appState.roomCode} 방에 접속했습니다! 뒤로가기를 눌러도 접속이 유지됩니다.`);
+            }
+            if (pendingSharedPayload) {
+                setTimeout(deliverPendingShared, isAutoRestore ? 0 : 1200);
             }
         }
 
@@ -1777,13 +1760,8 @@
             const sortLabel = document.getElementById('picker-sort-label');
             const sortHint = document.getElementById('sort-status-hint');
 
-            if (appState.pickerFolder === 'Gemini') {
-                folderBadge.className = 'text-indigo-700 font-extrabold flex items-center gap-1 shrink-0';
-                fullPathText.textContent = '/Internal Storage/Download/Gemini/';
-            } else {
-                folderBadge.className = 'text-slate-400 font-medium flex items-center gap-1 shrink-0';
-                fullPathText.textContent = '/Internal Storage/Download/';
-            }
+            if (folderBadge) folderBadge.className = 'text-indigo-700 font-extrabold shrink-0';
+            if (fullPathText) fullPathText.textContent = '기기에서 직접 선택';
 
             if (appState.pickerSortDesc) {
                 sortLabel.textContent = '최신순';
@@ -1805,6 +1783,13 @@
 
             files.sort((a, b) => appState.pickerSortDesc ? (b.timestamp - a.timestamp) : (a.timestamp - b.timestamp));
 
+            if (files.length === 0) {
+                container.innerHTML = '<div class="py-14 text-center text-xs text-slate-400 font-semibold leading-relaxed">아직 고른 파일이 없습니다.<br>아래 [내 기기 실제 파일 선택]을 눌러 보낼 파일을 골라주세요.</div>';
+                updateSendPickedButton();
+                lucide.createIcons();
+                return;
+            }
+
             container.innerHTML = files.map((file, idx) => {
                 const isLatest = appState.pickerSortDesc && idx === 0;
                 const iconHtml = getFileIconHtml(file.ext);
@@ -1825,8 +1810,8 @@
                                     ${isLatest ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500 text-white text-[9px] font-extrabold">최신 파일</span>' : ''}
                                     <span class="text-[10px] font-semibold text-indigo-600">${file.dateLabel}</span>
                                 </div>
-                                <p class="text-xs font-extrabold text-slate-900 truncate">${file.filename}</p>
-                                <p class="text-[10px] text-slate-500">/Download/${file.folder} • ${file.size}</p>
+                                <p class="text-xs font-extrabold text-slate-900 truncate">${escapeHtml(file.filename)}</p>
+                                <p class="text-[10px] text-slate-500">${escapeHtml(file.size)}</p>
                             </div>
                         </div>
                         <div class="ml-2 w-6 h-6 rounded-full flex items-center justify-center border transition shrink-0 ${
@@ -1860,10 +1845,7 @@
             label.textContent = selectedCount > 0 ? `선택 파일 전송 (${selectedCount})` : '파일을 선택하세요';
         }
 
-        function handleRealDeviceFiles(event) {
-            const fileList = event.target.files;
-            if (!fileList || fileList.length === 0) return;
-
+        function addRealFilesToPicker(fileList) {
             const sortedRealFiles = Array.from(fileList).sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
 
             [...sortedRealFiles].reverse().forEach(file => {
@@ -1889,7 +1871,14 @@
             appState.pickerSortDesc = true;
             updatePickerHeaderUI();
             renderGeminiPickerFiles();
-            showToast(`선택한 ${sortedRealFiles.length}개 실제 파일을 최신순 최상단에 추가했습니다.`);
+            return sortedRealFiles.length;
+        }
+
+        function handleRealDeviceFiles(event) {
+            const fileList = event.target.files;
+            if (!fileList || fileList.length === 0) return;
+            const count = addRealFilesToPicker(fileList);
+            showToast(`선택한 ${count}개 실제 파일을 최신순 최상단에 추가했습니다.`);
             event.target.value = '';
         }
 
@@ -2070,6 +2059,7 @@
         }
 
         async function startFileTransfer(filename, sizeStr, ext, realFileObj = null, dummyContent = '', batchFiles = null) {
+            markActivity();
             const allPeers = getCombinedPeers();
             const selectedPeers = allPeers.filter(p => p.selected);
             if (selectedPeers.length === 0) {
@@ -2298,10 +2288,157 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                showToast(`'${item.filename}' 파일을 기기에 다운로드했습니다.`);
+                showToast(`'${item.filename}' 다운로드 완료! 브라우저의 '다운로드' 폴더에서 확인하세요. (PC 크롬: Ctrl+J)`);
             } catch (e) {
                 showToast('파일 다운로드 중 오류가 발생했습니다.', 'warning');
             }
+        }
+
+        // ==========================================
+        // 7-1. 파일 수신 알림 (앱 안 팝업 + 백그라운드 시스템 알림 + 다운로드 버튼)
+        // ==========================================
+        let incomingPopupItemId = null;
+        let incomingPopupTimer = null;
+
+        function requestNotifyPermission() {
+            try {
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission().catch(() => {});
+                }
+            } catch (e) {}
+        }
+
+        function showIncomingFilePopup(item, autoHide = true) {
+            if (!item) return;
+            incomingPopupItemId = item.id;
+            document.getElementById('incoming-popup-title').textContent = `📩 ${item.sender}님이 파일을 보냈습니다`;
+            document.getElementById('incoming-popup-file').textContent = `${item.filename} (${item.size})`;
+            document.getElementById('incoming-popup').classList.remove('hidden');
+            lucide.createIcons();
+            clearTimeout(incomingPopupTimer);
+            if (autoHide) {
+                incomingPopupTimer = setTimeout(closeIncomingPopup, 12000);
+            }
+        }
+
+        function closeIncomingPopup() {
+            clearTimeout(incomingPopupTimer);
+            document.getElementById('incoming-popup').classList.add('hidden');
+        }
+
+        function downloadFromIncomingPopup() {
+            if (incomingPopupItemId) downloadHistoryFile(incomingPopupItemId);
+            closeIncomingPopup();
+        }
+
+        async function showSystemNotification(item) {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            const title = `📩 ${item.sender}님이 파일을 보냈습니다`;
+            const body = `${item.filename} (${item.size})`;
+            try {
+                const reg = swRegistration || await Promise.race([
+                    navigator.serviceWorker.ready,
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('sw timeout')), 1500))
+                ]);
+                await reg.showNotification(title, {
+                    body,
+                    tag: 'gyenam-' + item.id,
+                    renotify: true,
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200],
+                    icon: 'icon-192.png',
+                    badge: 'icon-192.png',
+                    data: { itemId: item.id },
+                    actions: [{ action: 'download', title: '다운로드' }]
+                });
+            } catch (e) {
+                try {
+                    const n = new Notification(title, { body, tag: 'gyenam-' + item.id });
+                    n.onclick = () => { window.focus(); n.close(); showIncomingFilePopup(item, false); };
+                } catch (e2) {}
+            }
+        }
+
+        function notifyIncomingFile(item) {
+            if (!item) return;
+            const away = document.hidden || !document.hasFocus();
+            if (away) {
+                showSystemNotification(item);
+                showIncomingFilePopup(item, false);
+            } else {
+                showIncomingFilePopup(item, true);
+            }
+        }
+
+        function handleSwMessage(event) {
+            const data = event.data || {};
+            if (data.type !== 'NOTIF_CLICK') return;
+            const item = appState.history.find(i => i.id === data.itemId);
+            if (!item) {
+                showToast('받은 파일을 찾지 못했습니다. 받은 파일 내역을 확인해주세요.', 'warning');
+                return;
+            }
+            showIncomingFilePopup(item, false);
+            if (data.action === 'download') downloadHistoryFile(item.id);
+        }
+
+        // ==========================================
+        // 7-2. 다른 앱 [공유하기] → 이 앱으로 파일/링크 수신 (sw.js가 보관한 내용 읽기)
+        // ==========================================
+        let pendingSharedPayload = null;
+
+        async function loadSharedInbox() {
+            if (!('caches' in window)) return null;
+            try {
+                const cache = await caches.open('gyenam-share-inbox-v1');
+                const metaRes = await cache.match(new URL('./__shared__/meta.json', window.location.href).href);
+                if (!metaRes) return null;
+                const meta = await metaRes.json();
+                const files = [];
+                for (const key of (meta.files || [])) {
+                    const res = await cache.match(key);
+                    if (!res) continue;
+                    const blob = await res.blob();
+                    const name = decodeURIComponent(res.headers.get('X-Filename') || 'shared_file');
+                    const lastModified = Number(res.headers.get('X-Lastmod')) || Date.now();
+                    files.push(new File([blob], name, { type: blob.type, lastModified }));
+                }
+                for (const k of await cache.keys()) await cache.delete(k);
+                return { title: meta.title || '', text: meta.text || '', url: meta.url || '', files };
+            } catch (e) {
+                appendDebugLog('공유 수신 읽기 실패: ' + (e && e.message ? e.message : e));
+                return null;
+            }
+        }
+
+        function deliverPendingShared() {
+            if (!pendingSharedPayload) return;
+            if (!appState.isConnected) {
+                showToast('공유한 내용이 대기 중입니다. 이름과 코드를 입력해 접속하면 보낼 수 있습니다.');
+                return;
+            }
+            const p = pendingSharedPayload;
+            pendingSharedPayload = null;
+            if (p.files.length > 0) {
+                addRealFilesToPicker(p.files);
+                openGeminiFolderPicker();
+                showToast(`공유받은 파일 ${p.files.length}개입니다. [선택 파일 전송]을 눌러 보내세요.`);
+            } else {
+                const combined = [p.title, p.text, p.url].filter(Boolean).join('\n');
+                if (!combined) return;
+                const safeName = (p.title ? p.title.replace(/[^a-zA-Z0-9가-힣._-]/g, '_').slice(0, 40) : '외부공유_링크') + '.txt';
+                receiveExternalSharedPayload(safeName, combined, 'txt');
+            }
+        }
+
+        async function handleIncomingSharedInbox() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('shared') !== '1') return;
+            window.history.replaceState({ gyenamGuard: 'active' }, '', window.location.pathname);
+            const payload = await loadSharedInbox();
+            if (!payload) return;
+            pendingSharedPayload = payload;
+            deliverPendingShared();
         }
 
         // ==========================================
@@ -2364,6 +2501,7 @@
             initPageLeaveNotifier();
             setupBrowserNavigationGuard();
             setupScreenLockAutoTerminate();
+            setupIdleAutoDisconnect();
 
             const expiredByLock = checkScreenLockTimeoutOnResume();
             if (!expiredByLock) {
@@ -2373,6 +2511,10 @@
                 }
             }
             handleIncomingWebShareTarget();
+            handleIncomingSharedInbox();
+            window.addEventListener('click', () => {
+                if (appState.isConnected) requestNotifyPermission();
+            }, { capture: true, passive: true });
             lucide.createIcons();
         });
     </script>
