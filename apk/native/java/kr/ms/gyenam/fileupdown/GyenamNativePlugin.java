@@ -26,6 +26,9 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -364,6 +367,89 @@ public class GyenamNativePlugin extends Plugin {
         } catch (Exception e) {
             call.reject("파일 열기 실패: " + e.getMessage());
         }
+    }
+
+    // ---------------------------------------------------------------- 앱 자동 업데이트
+    /** 새 APK를 앱 안에서 내려받아(진행률 알림) 설치 화면을 띄움. 최종 [설치]는 안드로이드 정책상 사용자가 직접 누름 */
+    @PluginMethod
+    public void downloadAndInstall(final PluginCall call) {
+        final String urlStr = call.getString("url");
+        final String name = call.getString("name", "gyenam-update.apk");
+        if (urlStr == null || !urlStr.startsWith("https://")) {
+            call.reject("업데이트 주소가 올바르지 않습니다");
+            return;
+        }
+        final Context ctx = getContext();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ctx.getPackageManager().canRequestPackageInstalls()) {
+                Intent set = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + ctx.getPackageName()));
+                set.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(set);
+                call.reject("NEED_INSTALL_PERMISSION");
+                return;
+            }
+        } catch (Exception e) {
+            call.reject("설치 권한 확인 실패: " + e.getMessage());
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection conn = null;
+                try {
+                    File dir = new File(ctx.getCacheDir(), "update");
+                    if (!dir.exists()) dir.mkdirs();
+                    File[] old = dir.listFiles();
+                    if (old != null) for (File o : old) o.delete();
+                    File out = new File(dir, name.replaceAll("[^A-Za-z0-9._-]", "_"));
+                    conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(30000);
+                    conn.setInstanceFollowRedirects(true);
+                    int code = conn.getResponseCode();
+                    if (code != 200) {
+                        call.reject("다운로드 실패 (HTTP " + code + ")");
+                        return;
+                    }
+                    long total = conn.getContentLengthLong();
+                    long done = 0;
+                    int lastPct = -1;
+                    InputStream in = conn.getInputStream();
+                    OutputStream os = new FileOutputStream(out);
+                    byte[] buf = new byte[64 * 1024];
+                    int n;
+                    while ((n = in.read(buf)) > 0) {
+                        os.write(buf, 0, n);
+                        done += n;
+                        if (total > 0) {
+                            int pct = (int) (done * 100 / total);
+                            if (pct != lastPct) {
+                                lastPct = pct;
+                                JSObject o = new JSObject();
+                                o.put("percent", pct);
+                                notifyListeners("updateProgress", o);
+                            }
+                        }
+                    }
+                    os.close();
+                    in.close();
+                    if (out.length() < 100 * 1024) {
+                        call.reject("내려받은 파일이 올바르지 않습니다");
+                        return;
+                    }
+                    Uri uri = GyenamFileProvider.getUriForFile(ctx, ctx.getPackageName() + ".gyenamfiles", out);
+                    Intent inst = new Intent(Intent.ACTION_VIEW);
+                    inst.setDataAndType(uri, "application/vnd.android.package-archive");
+                    inst.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(inst);
+                    call.resolve();
+                } catch (Exception e) {
+                    call.reject("업데이트 실패: " + e.getMessage());
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            }
+        }).start();
     }
 
     // ---------------------------------------------------------------- 공유 수신

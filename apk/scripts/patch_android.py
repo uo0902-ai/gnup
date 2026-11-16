@@ -36,7 +36,7 @@ print('리소스 복사 완료')
 mp = os.path.join(MAIN, 'AndroidManifest.xml')
 m = read(mp)
 PERMS = ['ACCESS_NETWORK_STATE', 'ACCESS_WIFI_STATE', 'WAKE_LOCK', 'FOREGROUND_SERVICE',
-         'FOREGROUND_SERVICE_SPECIAL_USE', 'POST_NOTIFICATIONS', 'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS']
+         'FOREGROUND_SERVICE_SPECIAL_USE', 'POST_NOTIFICATIONS', 'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS', 'REQUEST_INSTALL_PACKAGES']
 perm_xml = ''.join(f'    <uses-permission android:name="android.permission.{p}" />\n' for p in PERMS)
 assert '</manifest>' in m and '</application>' in m and '</activity>' in m, '예상과 다른 AndroidManifest.xml'
 service_xml = '''        <service

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.2)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.2)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.2';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.3)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.3)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.3';
 -->
 <html lang="ko">
 <head>
@@ -60,6 +60,20 @@
 
     <!-- 모바일 퍼스트 웹앱 메인 컨테이너 -->
     <div id="webapp-shell" class="relative w-full max-w-md min-h-screen sm:min-h-[840px] sm:max-h-[94vh] sm:my-3 bg-white sm:rounded-[32px] sm:shadow-2xl sm:border sm:border-slate-200/80 overflow-hidden flex flex-col">
+
+        <!-- 강제 업데이트 잠금 화면: 버전이 다르면 방 접속·파일 주고받기를 막음 -->
+        <div id="update-lock" class="hidden fixed inset-0 z-[200] bg-slate-950/95 items-center justify-center p-6">
+            <div class="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-2xl">
+                <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mb-3"><i data-lucide="download-cloud" class="w-7 h-7"></i></div>
+                <h2 class="text-lg font-extrabold text-slate-900 mb-1">업데이트가 필요합니다</h2>
+                <p id="update-lock-ver" class="text-xs font-bold text-indigo-600 mb-2"></p>
+                <p id="update-lock-reason" class="text-sm text-slate-600 mb-4">앱 버전이 달라서 업데이트하기 전에는 방 접속과 파일 주고받기를 사용할 수 없습니다.</p>
+                <p id="update-lock-progress" class="hidden text-xs font-bold text-emerald-600 mb-3"></p>
+                <button onclick="applyAppUpdate()" class="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i><span id="update-lock-btn-text">지금 업데이트</span>
+                </button>
+            </div>
+        </div>
 
         <!-- 업데이트 알림 배너 (새 버전 감지 시 표시) -->
         <div id="update-banner" class="hidden bg-amber-400 text-slate-950 px-4 py-2.5 flex items-center justify-between gap-2 text-xs font-extrabold z-30 shadow-sm shrink-0">
@@ -310,11 +324,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.2 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.3 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.2</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.3</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -533,7 +547,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.2';
+        const APP_VERSION = 'v3.3';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -543,6 +557,7 @@
         let idleCheckTimer = null;
         let pendingExternalShareItem = null;
         let latestUpdateUrl = '';
+        let latestApkUrl = '';
 
         // ==========================================
         // 진단 로그 기록 및 7번 연속 탭 핸들러
@@ -615,6 +630,39 @@
             return 0;
         }
 
+        // ---- 강제 업데이트 잠금 ----
+        let updateLocked = false;
+        let latestTag = '';
+        let lastUpdateCheckAt = 0;
+
+        function lockForUpdate(newTag, reason) {
+            if (updateLocked) return;
+            if (newTag) latestTag = newTag;
+            appendDebugLog('업데이트 필요로 사용 잠금: ' + (reason || '') + ' / 최신 ' + (newTag || '?'));
+            try {
+                if (appState.isConnected) {
+                    broadcastPresence('PRESENCE_LEAVE');
+                    teardownRoomNetwork();
+                    stopBackgroundService();
+                    appState.isConnected = false;
+                    liveSyncedPeers = {};
+                }
+            } catch (e) {}
+            updateLocked = true;
+            showUpdateLock(reason);
+        }
+
+        function showUpdateLock(reason) {
+            const el = document.getElementById('update-lock');
+            if (!el) return;
+            document.getElementById('update-lock-ver').textContent = `현재 ${APP_VERSION}` + (latestTag ? ` → 최신 ${latestTag}` : '');
+            if (reason) document.getElementById('update-lock-reason').textContent = reason;
+            document.getElementById('update-lock-btn-text').textContent = IS_NATIVE ? '지금 업데이트' : '새로고침하여 최신 버전 받기';
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+            lucide.createIcons();
+        }
+
         // 반환: 'newer'(새 버전 있음) | 'latest'(최신) | 'error'
         async function fetchUpdateState() {
             try {
@@ -627,9 +675,13 @@
                 const tag = String(rel.tag_name || '');
                 if (!tag) return 'error';
                 const apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name || ''));
-                latestUpdateUrl = (apk && apk.browser_download_url) || rel.html_url || '';
+                latestApkUrl = (apk && apk.browser_download_url) || '';
+                latestUpdateUrl = latestApkUrl || rel.html_url || '';
+                lastUpdateCheckAt = Date.now();
                 if (compareVersions(tag, APP_VERSION) > 0) {
-                    showUpdateAvailableBanner(`새 버전(${tag})이 있습니다! 받아서 설치해주세요.`);
+                    latestTag = tag;
+                    showUpdateAvailableBanner(`새 버전(${tag})이 있습니다! 업데이트해야 사용할 수 있습니다.`);
+                    lockForUpdate(tag, '새 버전이 나왔습니다. 업데이트해야 방 접속과 파일 주고받기를 할 수 있습니다.');
                     return 'newer';
                 }
                 return 'latest';
@@ -638,10 +690,17 @@
             }
         }
 
+        // 시작·방 입장·앱 복귀 때 조용히 확인 (5분 안에 이미 확인했으면 건너뜀)
+        function silentUpdateCheck(force = false) {
+            if (updateLocked) return;
+            if (!force && Date.now() - lastUpdateCheckAt < 5 * 60 * 1000) return;
+            fetchUpdateState();
+        }
+
         async function checkForAppUpdates() {
             if (!IS_NATIVE) {
                 showToast('웹 버전은 새로고침하면 최신 버전이 적용됩니다.');
-                setTimeout(() => window.location.reload(), 500);
+                setTimeout(() => reloadLatestWeb(), 500);
                 return;
             }
             const icon = document.getElementById('update-check-icon');
@@ -653,9 +712,46 @@
             else if (state === 'error') showToast('업데이트 정보를 가져오지 못했습니다. 인터넷 연결을 확인해주세요.', 'warning');
         }
 
-        function applyAppUpdate() {
-            if (!latestUpdateUrl) { checkForAppUpdates(); return; }
-            openExternalUrl(latestUpdateUrl);
+        function reloadLatestWeb() {
+            try {
+                const u = new URL(window.location.href);
+                u.searchParams.set('_v', String(Date.now()));
+                window.location.replace(u.toString());
+            } catch (e) { window.location.reload(); }
+        }
+
+        // 앱(APK): 새 APK를 앱 안에서 내려받아 설치 화면까지 자동으로 띄움 (설치 확인 버튼만 사용자가 누름)
+        let updating = false;
+        async function applyAppUpdate() {
+            if (!IS_NATIVE) { reloadLatestWeb(); return; }
+            if (updating) return;
+            if (!latestApkUrl) {
+                const st = await fetchUpdateState();
+                if (!latestApkUrl) { showToast('업데이트 파일을 찾지 못했습니다. 잠시 후 다시 시도해주세요.', 'warning'); return; }
+            }
+            const bg = getNativePlugin('GyenamNative');
+            if (!bg || !bg.downloadAndInstall) { openExternalUrl(latestUpdateUrl); return; }
+            updating = true;
+            setUpdateProgress('업데이트 파일을 내려받는 중... 0%');
+            try {
+                await bg.downloadAndInstall({ url: latestApkUrl, name: 'gyenam-update.apk' });
+                setUpdateProgress('설치 화면에서 [설치]를 눌러주세요. 설치가 끝나면 앱이 새로 시작됩니다.');
+            } catch (e) {
+                const msg = String((e && e.message) || e || '');
+                if (/NEED_INSTALL_PERMISSION/.test(msg)) {
+                    setUpdateProgress('설정 화면에서 "이 출처 허용"을 켠 뒤, 돌아와서 다시 [지금 업데이트]를 눌러주세요.');
+                } else {
+                    setUpdateProgress('업데이트 실패: ' + msg + ' (다시 눌러 재시도)');
+                }
+            }
+            updating = false;
+        }
+
+        function setUpdateProgress(text) {
+            const el = document.getElementById('update-lock-progress');
+            if (el) { el.textContent = text; el.classList.remove('hidden'); }
+            const bt = document.getElementById('update-banner-text');
+            if (bt && !document.getElementById('update-banner').classList.contains('hidden')) bt.textContent = text;
         }
 
         // ==========================================
@@ -843,7 +939,7 @@
             ];
             return {
                 type: 'PEER_ROSTER',
-                senderId: deviceId,
+                senderId: deviceId, appVer: APP_VERSION,
                 roomCode: appState.roomCode,
                 members
             };
@@ -863,6 +959,12 @@
         function handleIncomingNetworkPayload(msg, conn) {
             if (!msg || !msg.type || msg.senderId === deviceId) return;
             if (!appState.isConnected || msg.roomCode !== appState.roomCode) return;
+            if (updateLocked) return;
+            // 앱 버전이 다르면: 상대가 더 새 버전 → 나는 업데이트 전까지 사용 금지, 상대가 옛 버전 → 그 상대 메시지는 무시
+            const peerVer = msg.appVer ? String(msg.appVer) : '';
+            const vc = peerVer ? compareVersions(peerVer, APP_VERSION) : -1;
+            if (vc > 0) { lockForUpdate(peerVer, '다른 기기가 더 새로운 버전(' + peerVer + ')을 사용 중입니다.'); return; }
+            if (vc < 0) { appendDebugLog('옛 버전 기기 메시지 무시: ' + (peerVer || '버전 표기 없음')); return; }
 
             if (msg.type === 'PRESENCE_PING') {
                 if (!isRoomHost) return;
@@ -897,7 +999,7 @@
         function sendFileAck(msg) {
             const ack = {
                 type: 'FILE_ACK',
-                senderId: deviceId,
+                senderId: deviceId, appVer: APP_VERSION,
                 senderName: appState.nickname,
                 roomCode: appState.roomCode,
                 transferId: msg.transferId,
@@ -1141,7 +1243,7 @@
                 appendDebugLog(`게스트 노드 생성 성공 (${guestPeer.id}) → 방장에게 연결 시도`);
                 const conn = guestPeer.connect(hostPeerId, {
                     reliable: true,
-                    metadata: { senderId: deviceId, nickname: appState.nickname }
+                    metadata: { senderId: deviceId, appVer: APP_VERSION, nickname: appState.nickname }
                 });
                 guestHostConn = conn;
                 watchIceState(conn, '게스트→방장', (why) => {
@@ -1271,6 +1373,7 @@
 
         // ---- 메시지 보내기 ----
         function dispatchNetworkMessage(payload) {
+            if (updateLocked) return;
             if (isRoomHost) {
                 Object.values(liveSyncedPeers).forEach(p => {
                     if (p.conn && p.conn.open) {
@@ -1290,7 +1393,7 @@
             }
             dispatchNetworkMessage({
                 type,
-                senderId: deviceId,
+                senderId: deviceId, appVer: APP_VERSION,
                 nickname: appState.nickname,
                 roomCode: appState.roomCode
             });
@@ -1302,7 +1405,7 @@
                 if (appState.isConnected && !e.persisted) {
                     dispatchNetworkMessage({
                         type: 'PRESENCE_LEAVE',
-                        senderId: deviceId,
+                        senderId: deviceId, appVer: APP_VERSION,
                         roomCode: appState.roomCode
                     });
                 }
@@ -1534,6 +1637,7 @@
             }
             if (bg) {
                 bg.addListener('sharedAvailable', () => { pullNativeShared(); });
+                bg.addListener('updateProgress', (e) => { if (updating) setUpdateProgress('업데이트 파일을 내려받는 중... ' + ((e && e.percent) || 0) + '%'); });
             }
         }
 
@@ -1594,6 +1698,7 @@
         }
 
         function onAppVisible() {
+            silentUpdateCheck();
             checkScreenLockTimeoutOnResume();
             const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
             hiddenAt = 0;
@@ -1718,6 +1823,7 @@
         }
 
         function sendExternalSharedFileNow() {
+            if (updateLocked) { showUpdateLock(); return; }
             const item = pendingExternalShareItem;
             document.getElementById('external-share-modal').classList.add('hidden');
             pendingExternalShareItem = null;
@@ -1742,6 +1848,7 @@
         }
 
         function joinRoom(isAutoRestore = false) {
+            if (updateLocked) { showUpdateLock(); return; }
             if (!isAutoRestore) {
                 const nickInput = document.getElementById('input-nickname').value.trim();
                 const codeInput = document.getElementById('input-room-code').value.trim();
@@ -2039,6 +2146,7 @@
         }
 
         function sendSelectedPickerFiles() {
+            if (updateLocked) { showUpdateLock(); return; }
             const selectedFiles = appState.geminiFolderFiles.filter(f => f.selected);
             if (selectedFiles.length === 0) return;
 
@@ -2278,7 +2386,7 @@
                     const packet = {
                         type: 'FILE_TRANSFER',
                         transferId,
-                        senderId: deviceId,
+                        senderId: deviceId, appVer: APP_VERSION,
                         senderName: appState.nickname,
                         roomCode: appState.roomCode,
                         targetIds,
@@ -2762,6 +2870,7 @@
         // 앱 초기화 실행
         window.addEventListener('DOMContentLoaded', () => {
             initAppInfo();
+            silentUpdateCheck(true);
             initPageLeaveNotifier();
             setupScreenLockAutoTerminate();
             setupIdleAutoDisconnect();
