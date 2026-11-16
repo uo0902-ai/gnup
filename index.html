@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.6)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.6)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.6';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.7)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.7)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.7';
 -->
 <html lang="ko">
 <head>
@@ -326,11 +326,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.6 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.7 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.6</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.7</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -559,7 +559,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.6';
+        const APP_VERSION = 'v3.7';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -789,10 +789,13 @@
         // 서로 보낸 신호를 '내가 보낸 것'으로 착각해 버려서 서로를 인식하지 못함
         const DEVICE_ID_KEY = 'gyenam_tab_device_id';
         let deviceId = null;
-        try { deviceId = sessionStorage.getItem(DEVICE_ID_KEY); } catch (e) {}
+        const IS_APK_EARLY = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+        const DEVICE_ID_STORE = IS_APK_EARLY ? localStorage : sessionStorage;   // 앱: 영구 / 웹: 탭마다
+        const DEVICE_ID_NAME = IS_APK_EARLY ? 'gyenam_app_device_id' : DEVICE_ID_KEY;
+        try { deviceId = DEVICE_ID_STORE.getItem(DEVICE_ID_NAME); } catch (e) {}
         if (!deviceId) {
             deviceId = 'dev_' + Math.random().toString(36).slice(2, 11);
-            try { sessionStorage.setItem(DEVICE_ID_KEY, deviceId); } catch (e) {}
+            try { DEVICE_ID_STORE.setItem(DEVICE_ID_NAME, deviceId); } catch (e) {}
         }
 
         let liveSyncedPeers = {};   // deviceId -> { id, name, signal, selected, avatarColor, lastSeen, conn }
@@ -2472,6 +2475,14 @@
                 ? [...batchFiles].reverse()
                 : [{ filename, size: sizeStr, ext, fileObj: realFileObj, content: dummyContent }];
 
+            if (!asText) {
+                rawItems.forEach(f => {
+                    if (!f.fileObj && f.content) {
+                        f.fileObj = new Blob([f.content], { type: guessMime(f.filename, '') });
+                        f.content = '';
+                    }
+                });
+            }
             const items = rawItems.filter(f => {
                 if (f.fileObj && f.fileObj.size > MAX_FILE_BYTES) {
                     showToast(`'${f.filename}' 파일이 너무 큽니다. (최대 ${formatFileSize(MAX_FILE_BYTES)})`, 'warning');
@@ -3048,6 +3059,17 @@
                 openGeminiFolderPicker();
                 showToast(`공유받은 파일 ${p.files.length}개입니다. [선택 파일 전송]을 눌러 보내세요.`);
             } else {
+                // 제미나이 등에서 만든 웹앱(HTML 코드)을 공유하면 글(text)로 들어옴 → .html 파일 그대로 보냄
+                let htmlCode = '';
+                const fence = /```(?:html)?\s*\n([\s\S]*?)```/i.exec(p.text || '');
+                const candidate = (fence ? fence[1] : (p.text || '')).trim();
+                if (/^(<!doctype\s+html|<html[\s>])/i.test(candidate) || /<\/html>\s*$/i.test(candidate)) htmlCode = candidate;
+                if (htmlCode) {
+                    let base = (p.title ? p.title.replace(/[^a-zA-Z0-9가-힣._-]/g, '_').replace(/\.html?$/i, '').slice(0, 40) : '');
+                    if (!base || /^_+$/.test(base)) base = '공유_' + getCurrentTime().replace(':', '');
+                    receiveExternalSharedPayload(base + '.html', htmlCode, 'html');
+                    return;
+                }
                 const combined = [p.title, p.text, p.url].filter(Boolean).join('\n');
                 if (!combined) return;
                 const safeName = (p.title ? p.title.replace(/[^a-zA-Z0-9가-힣._-]/g, '_').slice(0, 40) : '외부공유_링크') + '.txt';

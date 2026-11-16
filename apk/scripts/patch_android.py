@@ -68,6 +68,16 @@ share_xml = '''            <intent-filter>
                 <data android:mimeType="*/*" />
             </intent-filter>
 '''
+# 공유로 들어올 때 앱 화면이 두 개 생기지 않도록 한 화면만 쓰는 모드(singleTask)로 고정
+def _fix_launch_mode(mx):
+    mm = re.search(r'<activity\b[^>]*>', mx)
+    tag = mm.group(0)
+    if 'android:launchMode' in tag:
+        new = re.sub(r'android:launchMode="[^"]*"', 'android:launchMode="singleTask"', tag)
+    else:
+        new = tag[:-1] + ' android:launchMode="singleTask">'
+    return mx.replace(tag, new, 1)
+m = _fix_launch_mode(m)
 if 'KeepAliveService' not in m:
     m = m.replace('</activity>', share_xml + '        </activity>', 1)
     m = m.replace('</application>', service_xml + '    </application>', 1)

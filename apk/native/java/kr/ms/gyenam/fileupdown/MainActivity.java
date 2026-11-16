@@ -15,6 +15,7 @@ import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,6 +24,8 @@ import java.util.List;
 
 public class MainActivity extends BridgeActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
+    /** 앱 화면은 항상 하나만 쓰기 위해, 이미 떠 있는 화면을 기억해 둠 */
+    private static WeakReference<MainActivity> sAlive;
 
     /**
      * 앱이 화면 밖으로 나가면 안드로이드가 웹 화면(WebView)의 타이머를 늦추거나 멈춥니다.
@@ -47,8 +50,20 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        MainActivity other = sAlive == null ? null : sAlive.get();
+        final boolean duplicate = other != null && other != this && !other.isFinishing() && !other.isDestroyed();
         registerPlugin(GyenamNativePlugin.class);
         super.onCreate(savedInstanceState);
+        if (duplicate) {
+            // 다른 앱의 공유 등으로 화면이 하나 더 만들어졌으면: 기존 화면으로 내용을 넘기고 이 화면은 닫음 (기기가 2대로 보이는 것을 막음)
+            other.handleShareIntent(getIntent());
+            Intent front = new Intent(this, MainActivity.class);
+            front.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(front);
+            finish();
+            return;
+        }
+        sAlive = new WeakReference<>(this);
         handleShareIntent(getIntent());
     }
 
@@ -77,6 +92,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(keepWebViewAlive);
+        if (sAlive != null && sAlive.get() == this) sAlive = null;
         super.onDestroy();
     }
 
