@@ -10,6 +10,9 @@ var DANGEROUS = /\.(exe|msi|bat|cmd|com|scr|vbs|js|jse|wsf|ps1|jar|apk|dmg|pkg|s
 var FLOOD_COUNT = 10;                       // 이 횟수 이상
 var FLOOD_SECONDS = 60;                     // 이 시간(초) 안에 같은 기기가 보내면 '과다전송'
 var NICK_LIMIT = 3;                         // 한 기기가 닉네임을 이 개수 이상 쓰면 '닉네임 여러 개'
+var TEACHER_FOLDER_ID = '1GqOhJHp94A9szAVjIhzFOfQxPPhcT-hX';   // 학생이 '선생님께 전송'한 파일이 저장될 구글 드라이브 폴더
+var TEACHER_MAX_BYTES = 20 * 1024 * 1024;                      // 파일 1개당 최대 크기
+var BLOCKED = /\.(exe|msi|bat|cmd|scr|vbs|jse|wsf|ps1|jar|apk|dll|hta|reg|lnk)$/i;  // 받지 않는 파일 형식
 
 var LOG_HEAD = ['시간','기기번호','닉네임','플랫폼','기기모델','방코드','구분','상대','종류','파일명','크기','결과','메시지 내용','이상 표시','기기ID(접속)','설치ID','안드로이드ID','앱버전','전송ID'];
 var DEV_HEAD = ['기기번호','기기키','처음 본 시간','마지막 시간','플랫폼','기기모델','사용한 닉네임'];
@@ -19,9 +22,10 @@ function doPost(e) {
   lock.waitLock(20000);
   try {
     var body = JSON.parse(e.postData.contents);
-    if (body.token !== TOKEN) return out_('bad token');
+    if (body.token !== TOKEN) return json_({ ok: false, error: '허용되지 않은 요청입니다' });
     var ss = SpreadsheetApp.getActive();
     if (ss.getSpreadsheetTimeZone() !== TZ) ss.setSpreadsheetTimeZone(TZ);
+    if (body.action === 'teacherUpload') return teacherUpload_(ss, body);
     var log = sheet_(ss, '로그', LOG_HEAD);
     var dev = sheet_(ss, '기기목록', DEV_HEAD);
     var rows = body.rows || [];
@@ -37,6 +41,51 @@ function doPost(e) {
 function doGet() { return out_('계남중 파일업다운 기록 수신 준비됨'); }
 
 function out_(t) { return ContentService.createTextOutput(t); }
+function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+function cleanName_(x, max) { return String(x || '').replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, max || 60); }
+
+// 학생이 '선생님께 전송'으로 보낸 파일을 드라이브 폴더에 저장: 폴더/1학년 3반/이름_날짜시간_파일명
+function teacherUpload_(ss, b) {
+  try {
+    var grade = cleanName_(b.grade, 2), cls = cleanName_(b.cls, 3), name = cleanName_(b.name, 20);
+    var fname = cleanName_(b.filename, 100) || 'file';
+    if (!/^[1-3]$/.test(grade) || !/^\d{1,2}$/.test(cls) || !name) return json_({ ok: false, error: '학년·반·이름이 올바르지 않습니다' });
+    if (BLOCKED.test(fname)) return json_({ ok: false, error: '받을 수 없는 파일 형식입니다' });
+    var bytes = Utilities.base64Decode(String(b.data || ''));
+    if (!bytes.length) return json_({ ok: false, error: '빈 파일입니다' });
+    if (bytes.length > TEACHER_MAX_BYTES) return json_({ ok: false, error: '파일이 너무 큽니다' });
+
+    var root = DriveApp.getFolderById(TEACHER_FOLDER_ID);
+    var folderName = grade + '학년 ' + cls + '반';
+    var it = root.getFoldersByName(folderName);
+    var folder = it.hasNext() ? it.next() : root.createFolder(folderName);
+
+    // 같은 전송을 다시 보내도(재시도) 중복 저장되지 않도록 전송ID를 이름에 넣어 확인
+    var tag = String(b.uploadId || '').replace(/[^A-Za-z0-9_]/g, '').slice(-10);
+    var stamp = Utilities.formatDate(new Date(b.t || Date.now()), TZ, 'MMdd_HHmm');
+    var finalName = name + '_' + stamp + (tag ? '_' + tag : '') + '_' + fname;
+    var dup = folder.getFilesByName(finalName);
+    var file;
+    var duplicate = false;
+    if (dup.hasNext()) { file = dup.next(); duplicate = true; }
+    else file = folder.createFile(Utilities.newBlob(bytes, b.mime || 'application/octet-stream', finalName));
+
+    if (!duplicate) {
+      var log = sheet_(ss, '로그', LOG_HEAD);
+      var dev = sheet_(ss, '기기목록', DEV_HEAD);
+      var nick = grade + '학년 ' + cls + '반 ' + name;
+      addRow_(log, dev, {
+        t: b.t, nick: nick, room: '', deviceId: b.deviceId, installId: b.installId, androidId: b.androidId, model: b.model,
+        platform: b.platform, appVer: b.appVer, dir: '선생님께 전송', peer: '선생님(드라이브)', kind: '파일',
+        filename: fname, size: b.sizeLabel || '', result: '저장 완료', text: file.getUrl(), transferId: b.uploadId
+      });
+    }
+    return json_({ ok: true, name: finalName, url: file.getUrl(), duplicate: duplicate });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
+}
 
 function sheet_(ss, name, head) {
   var sh = ss.getSheetByName(name);
