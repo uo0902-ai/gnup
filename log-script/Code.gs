@@ -38,7 +38,7 @@ function doPost(e) {
   }
 }
 
-function doGet() { return out_('계남중 파일업다운 기록 수신 준비됨'); }
+function doGet() { return out_('계남중 파일업다운 기록 수신 준비됨 (v3.8 · 선생님께 전송 지원)'); }
 
 function out_(t) { return ContentService.createTextOutput(t); }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
