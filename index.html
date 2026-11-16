@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.12)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.12)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.12';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.13)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.13)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.13';
 -->
 <html lang="ko">
 <head>
@@ -326,11 +326,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.12 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.13 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.12</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.13</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -506,7 +506,7 @@
                 <h3 class="text-base font-extrabold text-slate-900">어디로 보낼까요?</h3>
                 <p id="share-target-summary" class="text-xs text-slate-500 mt-1 mb-4 break-all"></p>
                 <button onclick="chooseShareTarget('peers')" class="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm mb-2">같은 방 조원에게 전송</button>
-                <button onclick="chooseShareTarget('cancel')" class="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">취소</button>
+                <button onclick="chooseShareTarget('cancel')" class="w-full py-2.5 rounded-2xl bg-[#cdd0d3] hover:bg-[#c0c4c8] text-slate-700 font-bold text-xs">취소</button>
                 <div class="mt-6 pt-4 border-t border-slate-200">
                     <button onclick="chooseShareTarget('teacher')" class="w-full py-3 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-sm">선생님께 전송</button>
                 </div>
@@ -623,7 +623,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.12';
+        const APP_VERSION = 'v3.13';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -2177,13 +2177,6 @@
 
         function closeGeminiFolderPicker() {
             document.getElementById('gemini-picker-modal').classList.add('hidden');
-        }
-
-        function switchPickerFolder(folderName) {
-            appState.pickerFolder = folderName;
-            updatePickerHeaderUI();
-            renderGeminiPickerFiles();
-            lucide.createIcons();
         }
 
         function togglePickerSortOrder() {
