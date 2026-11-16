@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v2.2)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v2.2)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v2.2';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v2.4)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v2.4)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v2.4';
 -->
 <html lang="ko">
 <head>
@@ -329,11 +329,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v2.2 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v2.4 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v2.2</span>
+                <span id="footer-version-text" class="text-white">앱버전 v2.4</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -589,7 +589,7 @@
         // ==========================================
         // 0. 앱 버전 관리 및 원클릭 업데이트 상수
         // ==========================================
-        const APP_VERSION = 'v2.2';
+        const APP_VERSION = 'v2.4';
         const VERSION_STORAGE_KEY = 'gyenam_app_version_installed';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
@@ -763,6 +763,14 @@
         const HEARTBEAT_INTERVAL_MS = 4000;      // 조원 생존 신호 주기
         const PEER_TIMEOUT_MS = 25000;           // 이 시간 동안 신호가 없으면 방장이 명단에서 삭제
         const GUEST_CONNECT_TIMEOUT_MS = 12000;  // 방장과 이 시간 안에 연결되지 않으면 재시도
+        const HOST_SILENCE_MS = 15000;           // 방장에게서 이 시간 동안 아무 신호가 없으면 방장이 사라진 것으로 판단
+        let SEND_STALL_MS = 20000;               // 전송 중 이 시간 동안 데이터가 전혀 빠져나가지 않으면 실패로 판단
+        const ACK_WAIT_MS = 20000;               // 파일을 보낸 뒤 상대 수신 확인을 기다리는 시간
+        let lastHostMsgAt = 0;
+        let hiddenAt = 0;
+        let sigReconnectTimer = null;
+        let sigReconnectFails = 0;
+        const pendingAcks = {};
         const MAX_FILE_BYTES = 25 * 1024 * 1024; // 파일 1개당 전송 상한 (25MB)
 
         const DEVICE_ID_KEY = 'gyenam_unique_device_id';
@@ -795,7 +803,7 @@
             appendDebugLog(`환경: ${/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '모바일' : 'PC'} | online=${navigator.onLine} | 네트워크(${info})`);
         }
 
-        function watchIceState(conn, label) {
+        function watchIceState(conn, label, onDead) {
             try {
                 const pc = conn && conn.peerConnection;
                 if (!pc) {
@@ -804,7 +812,16 @@
                 }
                 const seenTypes = new Set();
                 pc.addEventListener('iceconnectionstatechange', () => {
-                    appendDebugLog(`${label} ICE 상태: ${pc.iceConnectionState}`);
+                    const st = pc.iceConnectionState;
+                    appendDebugLog(`${label} ICE 상태: ${st}`);
+                    if (!onDead) return;
+                    if (st === 'failed' || st === 'closed') {
+                        onDead(st);
+                    } else if (st === 'disconnected') {
+                        setTimeout(() => {
+                            if (pc.iceConnectionState === 'disconnected') onDead('disconnected 10초 지속');
+                        }, 10000);
+                    }
                 });
                 pc.addEventListener('icecandidate', (ev) => {
                     if (!ev.candidate) return;
@@ -912,18 +929,22 @@
             renderPeers();
         }
 
-        function broadcastRosterFromHost() {
-            if (!isRoomHost) return;
+        function buildRosterPayload() {
             const members = [
                 { id: deviceId, name: appState.nickname },
                 ...Object.values(liveSyncedPeers).map(p => ({ id: p.id, name: p.name }))
             ];
-            const rosterPayload = {
+            return {
                 type: 'PEER_ROSTER',
                 senderId: deviceId,
                 roomCode: appState.roomCode,
                 members
             };
+        }
+
+        function broadcastRosterFromHost() {
+            if (!isRoomHost) return;
+            const rosterPayload = buildRosterPayload();
             Object.values(liveSyncedPeers).forEach(p => {
                 if (p.conn && p.conn.open) {
                     try { p.conn.send(rosterPayload); } catch (e) {}
@@ -943,6 +964,9 @@
                     appendDebugLog(`조원 입장 감지: ${msg.nickname} (${msg.senderId})`);
                     renderPeers();
                     broadcastRosterFromHost();
+                } else if (conn && conn.open) {
+                    // 생존 확인 응답: 게스트가 방장이 살아 있는지 알 수 있게 명단을 바로 돌려줌
+                    try { conn.send(buildRosterPayload()); } catch (e) {}
                 }
             } else if (msg.type === 'PRESENCE_LEAVE') {
                 if (!isRoomHost) return;
@@ -957,7 +981,69 @@
                 applyRosterFromHost(msg.members);
             } else if (msg.type === 'FILE_TRANSFER') {
                 handleFileTransferPacket(msg);
+            } else if (msg.type === 'FILE_ACK') {
+                handleFileAckPacket(msg);
             }
+        }
+
+        // ---- 파일 수신 확인(ACK): 보낸 사람이 '진짜 받았는지' 알 수 있게 함 ----
+        function sendFileAck(msg) {
+            const ack = {
+                type: 'FILE_ACK',
+                senderId: deviceId,
+                senderName: appState.nickname,
+                roomCode: appState.roomCode,
+                transferId: msg.transferId,
+                targetIds: [msg.senderId]
+            };
+            if (isRoomHost) {
+                const p = liveSyncedPeers[msg.senderId];
+                if (p && p.conn && p.conn.open) {
+                    try { p.conn.send(ack); } catch (e) {}
+                }
+            } else if (guestHostConn && guestHostConn.open) {
+                try { guestHostConn.send(ack); } catch (e) {}
+            }
+        }
+
+        function handleFileAckPacket(msg) {
+            const mine = Array.isArray(msg.targetIds) && msg.targetIds.includes(deviceId);
+            if (isRoomHost && !mine) {
+                relayFileTransfer(msg);
+                return;
+            }
+            if (!mine) return;
+            const pending = pendingAcks[msg.transferId];
+            if (!pending || pending.got.has(msg.senderId)) return;
+            pending.got.add(msg.senderId);
+            appendDebugLog(`수신 확인: ${msg.senderName} 님이 '${pending.filename}' 파일을 받음`);
+            showToast(`✅ ${msg.senderName}님이 '${pending.filename}' 파일을 받았습니다.`);
+            if (pending.got.size >= pending.expected.size) {
+                clearTimeout(pending.timer);
+                delete pendingAcks[msg.transferId];
+            }
+        }
+
+        function trackFileAck(transferId, filename, selectedPeers) {
+            const pending = {
+                filename,
+                expected: new Map(selectedPeers.map(p => [p.id, p.name])),
+                got: new Set(),
+                timer: null
+            };
+            pendingAcks[transferId] = pending;
+        }
+
+        function armAckTimer(transferId) {
+            const pending = pendingAcks[transferId];
+            if (!pending) return; // 이미 모두 수신 확인됨
+            pending.timer = setTimeout(() => {
+                const missing = [...pending.expected.entries()].filter(([id]) => !pending.got.has(id)).map(([, n]) => n);
+                delete pendingAcks[transferId];
+                if (missing.length === 0) return;
+                appendDebugLog(`수신 확인 없음: ${missing.join(', ')} ('${pending.filename}')`);
+                showToast(`⚠ ${missing.join(', ')}님의 수신 확인이 없습니다. 상대 앱이 백그라운드/절전 상태일 수 있어요. 앱을 켠 뒤 다시 보내주세요.`, 'warning');
+            }, ACK_WAIT_MS);
         }
 
         function relayFileTransfer(msg) {
@@ -994,6 +1080,7 @@
                 content: blob ? '' : (msg.content || '')
             });
             appendDebugLog(`파일 수신 완료: ${msg.filename} (보낸이: ${msg.senderName})`);
+            if (msg.transferId) sendFileAck(msg);
             notifyIncomingFile(appState.history[0]);
         }
 
@@ -1063,10 +1150,27 @@
             }
         }
 
+        function safeSignalingReconnect(peer, label) {
+            if (sigReconnectTimer) return;
+            const delay = Math.min(1000 * Math.pow(2, sigReconnectFails), 20000);
+            sigReconnectFails++;
+            appendDebugLog(`${label}: 시그널링 서버와 연결이 끊어짐 → ${(delay / 1000).toFixed(0)}초 후 재접속`);
+            sigReconnectTimer = setTimeout(() => {
+                sigReconnectTimer = null;
+                if (peerNetwork === peer && !peer.destroyed && peer.disconnected) {
+                    try { peer.reconnect(); } catch (e) {}
+                }
+            }, delay);
+        }
+
         function setupHostConnection(conn) {
             appendDebugLog(`게스트 접속 요청 감지: ${conn.peer}`);
             hostConnList.push(conn);
-            watchIceState(conn, '방장←게스트');
+            watchIceState(conn, '방장←게스트', (why) => {
+                appendDebugLog(`방장←게스트 연결 끊김 판정(${why}) → 정리`);
+                try { conn.close(); } catch (e) {}
+                handleHostConnGone(conn);
+            });
             conn.on('data', (data) => handleIncomingNetworkPayload(data, conn));
             conn.on('close', () => handleHostConnGone(conn));
             conn.on('error', () => handleHostConnGone(conn));
@@ -1094,7 +1198,12 @@
         function startGuestHeartbeat() {
             stopHeartbeat();
             heartbeatTimer = setInterval(() => {
-                if (guestHostConn && guestHostConn.open) broadcastPresence('PRESENCE_PING');
+                if (!(guestHostConn && guestHostConn.open)) return;
+                if (Date.now() - lastHostMsgAt > HOST_SILENCE_MS) {
+                    scheduleReconnect(`방장 응답 없음(${HOST_SILENCE_MS / 1000}초) → 방장 승격 재탐색`, true);
+                    return;
+                }
+                broadcastPresence('PRESENCE_PING');
             }, HEARTBEAT_INTERVAL_MS);
         }
 
@@ -1118,8 +1227,7 @@
             });
             guestPeer.on('disconnected', () => {
                 if (peerNetwork !== guestPeer || guestPeer.destroyed) return;
-                appendDebugLog('게스트 노드: 시그널링 서버와 연결이 끊어짐 → 재접속 시도');
-                try { guestPeer.reconnect(); } catch (e) {}
+                safeSignalingReconnect(guestPeer, '게스트 노드');
             });
             guestPeer.on('open', () => {
                 if (peerNetwork !== guestPeer) return;
@@ -1129,7 +1237,9 @@
                     metadata: { senderId: deviceId, nickname: appState.nickname }
                 });
                 guestHostConn = conn;
-                watchIceState(conn, '게스트→방장');
+                watchIceState(conn, '게스트→방장', (why) => {
+                    if (guestHostConn === conn) scheduleReconnect(`방장과 연결 끊김 판정(${why}) → 방장 승격 재탐색`, true);
+                });
 
                 const connectTimer = setTimeout(() => {
                     if (guestHostConn === conn && !conn.open) {
@@ -1141,12 +1251,17 @@
                     clearTimeout(connectTimer);
                     if (guestHostConn !== conn) return;
                     connectAttempt = 0;
+                    sigReconnectFails = 0;
+                    lastHostMsgAt = Date.now();
                     appendDebugLog(`방장(#${roomCode})과 P2P 연결 완료`);
                     setSyncBadge('실시간 동기화');
                     broadcastPresence('PRESENCE_PING');
                     startGuestHeartbeat();
                 });
-                conn.on('data', (data) => handleIncomingNetworkPayload(data, conn));
+                conn.on('data', (data) => {
+                    lastHostMsgAt = Date.now();
+                    handleIncomingNetworkPayload(data, conn);
+                });
                 conn.on('error', (cerr) => {
                     appendDebugLog(`방장 연결 오류: ${cerr && cerr.type ? cerr.type : cerr}`);
                 });
@@ -1159,6 +1274,34 @@
             });
         }
 
+        function guestLinkAlive() {
+            return !!(guestHostConn && guestHostConn.open && Date.now() - lastHostMsgAt < HOST_SILENCE_MS);
+        }
+
+        // 백그라운드에서 돌아왔을 때: 오래 있었으면 연결을 새로 만들고, 잠깐이면 생존 확인
+        function resumeNetworkAfterBackground(awayMs) {
+            if (!appState.isConnected) return;
+            if (awayMs >= HOST_SILENCE_MS) {
+                appendDebugLog(`백그라운드 ${Math.round(awayMs / 1000)}초 → 연결을 새로 구성`);
+                teardownRoomNetwork();
+                connectAttempt = 0;
+                connectPeerRoomNetwork(appState.roomCode);
+                return;
+            }
+            if (isRoomHost) {
+                if (peerNetwork && peerNetwork.disconnected) safeSignalingReconnect(peerNetwork, '방장 노드');
+                broadcastPresence('PRESENCE_PING');
+                return;
+            }
+            const t0 = Date.now();
+            broadcastPresence('PRESENCE_PING');
+            setTimeout(() => {
+                if (appState.isConnected && !isRoomHost && lastHostMsgAt < t0) {
+                    scheduleReconnect('복귀 후 방장 응답 없음 → 재탐색', true);
+                }
+            }, 5000);
+        }
+
         function connectPeerRoomNetwork(roomCode) {
             if (typeof Peer === 'undefined') {
                 appendDebugLog('PeerJS 로드 실패: 인터넷 연결 또는 차단 여부 확인');
@@ -1166,7 +1309,7 @@
                 return;
             }
             const healthy = peerNetwork && !peerNetwork.destroyed && (
-                (isRoomHost && !peerNetwork.disconnected) || (guestHostConn && guestHostConn.open)
+                (isRoomHost && !peerNetwork.disconnected) || guestLinkAlive()
             );
             if (activeRoomId === roomCode && healthy) {
                 broadcastPresence('PRESENCE_PING');
@@ -1181,6 +1324,9 @@
             setSyncBadge('연결 탐색 중...');
 
             const hostCandidate = new Peer(hostPeerId, { debug: 0 });
+            hostCandidate.on('connection', (conn) => {
+                if (peerNetwork === hostCandidate) setupHostConnection(conn);
+            });
 
             hostCandidate.on('open', () => {
                 if (activeRoomId !== roomCode) {
@@ -1190,16 +1336,15 @@
                 peerNetwork = hostCandidate;
                 isRoomHost = true;
                 connectAttempt = 0;
+                sigReconnectFails = 0;
                 appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId})`);
                 setSyncBadge('실시간 동기화');
-                hostCandidate.on('connection', (conn) => setupHostConnection(conn));
                 startHostHeartbeat();
             });
 
             hostCandidate.on('disconnected', () => {
                 if (peerNetwork !== hostCandidate || hostCandidate.destroyed) return;
-                appendDebugLog('방장 노드: 시그널링 서버와 연결이 끊어짐 → 재접속 시도');
-                try { hostCandidate.reconnect(); } catch (e) {}
+                safeSignalingReconnect(hostCandidate, '방장 노드');
             });
 
             hostCandidate.on('error', (err) => {
@@ -1257,8 +1402,8 @@
             });
             window.addEventListener('pageshow', (e) => {
                 if (e.persisted && appState.isConnected) {
-                    appendDebugLog('백그라운드 복귀 → 연결 상태 확인');
-                    connectPeerRoomNetwork(appState.roomCode);
+                    appendDebugLog('백그라운드 복귀 → 연결을 새로 구성');
+                    resumeNetworkAfterBackground(HOST_SILENCE_MS);
                 }
             });
             window.addEventListener('online', () => {
@@ -1282,6 +1427,7 @@
                     broadcastPresence('PRESENCE_LEAVE');
                 }
                 teardownRoomNetwork();
+                stopKeepAlive();
                 appState.isConnected = false;
                 liveSyncedPeers = {};
                 appState.history = [];
@@ -1334,6 +1480,93 @@
             return false;
         }
 
+        // ==========================================
+        // 백그라운드 접속 유지: 아주 작은 소리를 반복 재생하는 '재생 중' 상태로 두어
+        // 홈 화면으로 나가도 크롬이 이 앱을 멈추지 않게 함 (알림창에 '접속 유지 중' 표시)
+        // ==========================================
+        let keepAliveAudio = null;
+        let keepAliveUrl = null;
+
+        function buildQuietWavUrl() {
+            const rate = 8000, sec = 2, n = rate * sec;
+            const buf = new ArrayBuffer(44 + n * 2);
+            const v = new DataView(buf);
+            const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+            w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+            v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+            v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+            w(36, 'data'); v.setUint32(40, n * 2, true);
+            for (let i = 0; i < n; i++) {
+                v.setInt16(44 + i * 2, Math.round(3 * Math.sin(2 * Math.PI * 40 * i / rate)), true); // 들리지 않는 크기
+            }
+            return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+        }
+
+        function updateMediaSession() {
+            if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+            try {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: '접속 유지 중',
+                    artist: `#${appState.roomCode} · 파일 수신 대기`,
+                    album: '계남중 파일업다운',
+                    artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }]
+                });
+                navigator.mediaSession.playbackState = 'playing';
+                ['play', 'pause', 'stop'].forEach(act => {
+                    try {
+                        navigator.mediaSession.setActionHandler(act, () => {
+                            if (!keepAliveAudio) return;
+                            if (act === 'play') keepAliveAudio.play().catch(() => {});
+                            else keepAliveAudio.pause();
+                        });
+                    } catch (e) {}
+                });
+            } catch (e) {}
+        }
+
+        function startKeepAlive() {
+            if (!appState.isConnected) return;
+            try {
+                if (!keepAliveAudio) {
+                    keepAliveUrl = buildQuietWavUrl();
+                    keepAliveAudio = new Audio(keepAliveUrl);
+                    keepAliveAudio.loop = true;
+                    keepAliveAudio.addEventListener('pause', () => {
+                        if (keepAliveAudio) appendDebugLog('백그라운드 유지 소리가 멈춤(다른 소리 재생 등)');
+                    });
+                }
+                if (!keepAliveAudio.paused) return;
+                keepAliveAudio.play().then(() => {
+                    appendDebugLog('백그라운드 유지 시작 (알림창에 "접속 유지 중" 표시)');
+                    updateMediaSession();
+                }).catch((e) => {
+                    appendDebugLog(`백그라운드 유지 시작 실패 (화면을 한 번 터치하면 다시 시도): ${e && e.name ? e.name : e}`);
+                });
+            } catch (e) {
+                appendDebugLog('백그라운드 유지 오류: ' + (e && e.message ? e.message : e));
+            }
+        }
+
+        function stopKeepAlive() {
+            try {
+                const a = keepAliveAudio;
+                keepAliveAudio = null;
+                if (a) {
+                    a.pause();
+                    a.removeAttribute('src');
+                    a.load();
+                }
+                if (keepAliveUrl) {
+                    URL.revokeObjectURL(keepAliveUrl);
+                    keepAliveUrl = null;
+                }
+                if ('mediaSession' in navigator) {
+                    navigator.mediaSession.metadata = null;
+                    navigator.mediaSession.playbackState = 'none';
+                }
+            } catch (e) {}
+        }
+
         function markActivity() {
             lastActivityAt = Date.now();
         }
@@ -1344,6 +1577,7 @@
                 broadcastPresence('PRESENCE_LEAVE');
             } catch (e) {}
             teardownRoomNetwork();
+            stopKeepAlive();
             appState.isConnected = false;
             liveSyncedPeers = {};
             localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1379,6 +1613,7 @@
         function setupScreenLockAutoTerminate() {
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) {
+                    hiddenAt = Date.now();
                     if (!localStorage.getItem(LOCK_TIMESTAMP_KEY)) {
                         localStorage.setItem(LOCK_TIMESTAMP_KEY, String(Date.now()));
                     }
@@ -1388,9 +1623,12 @@
                     }, SCREEN_LOCK_TIMEOUT_MS);
                 } else {
                     checkScreenLockTimeoutOnResume();
+                    const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
+                    hiddenAt = 0;
+                    if (appState.isConnected) startKeepAlive();
                     if (appState.isConnected && !checkIdleTimeout()) {
-                        appendDebugLog('화면 복귀 → 연결 상태 확인');
-                        connectPeerRoomNetwork(appState.roomCode);
+                        appendDebugLog(`화면 복귀(${Math.round(awayMs / 1000)}초 만에) → 연결 상태 확인`);
+                        resumeNetworkAfterBackground(awayMs);
                     }
                 }
             });
@@ -1637,6 +1875,7 @@
             renderHistory();
             lucide.createIcons();
 
+            startKeepAlive();
             if (!isAutoRestore) {
                 requestNotifyPermission();
                 showToast(`#${appState.roomCode} 방에 접속했습니다! 뒤로가기를 눌러도 접속이 유지됩니다.`);
@@ -1692,6 +1931,7 @@
             appState.roomCode = newCode;
 
             syncRoomUI();
+            updateMediaSession();
             if (codeChanged) {
                 connectPeerRoomNetwork(appState.roomCode);
             }
@@ -1715,6 +1955,7 @@
             closeLeaveConfirmModal();
             broadcastPresence('PRESENCE_LEAVE');
             teardownRoomNetwork();
+            stopKeepAlive();
             appState.isConnected = false;
             liveSyncedPeers = {};
             localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -1814,6 +2055,10 @@
                                 <p class="text-[10px] text-slate-500">${escapeHtml(file.size)}</p>
                             </div>
                         </div>
+                        <button type="button" onclick="event.stopPropagation(); removePickerFile('${file.id}')" title="목록에서 삭제" aria-label="목록에서 삭제"
+                            class="ml-2 w-8 h-8 rounded-full flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300 transition shrink-0">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
                         <div class="ml-2 w-6 h-6 rounded-full flex items-center justify-center border transition shrink-0 ${
                             file.selected 
                             ? 'bg-indigo-600 border-indigo-600 text-white' 
@@ -1827,6 +2072,14 @@
 
             updateSendPickedButton();
             lucide.createIcons();
+        }
+
+        function removePickerFile(fileId) {
+            const idx = appState.geminiFolderFiles.findIndex(f => f.id === fileId);
+            if (idx < 0) return;
+            const [removed] = appState.geminiFolderFiles.splice(idx, 1);
+            renderGeminiPickerFiles();
+            showToast(`'${removed.filename}' 파일을 목록에서 뺐습니다. (내 기기의 원본 파일은 그대로입니다)`);
         }
 
         function togglePickerFileSelect(fileId) {
@@ -2024,6 +2277,8 @@
         function waitForSendDrain(conns, onProgress) {
             return new Promise((resolve) => {
                 const startedAt = Date.now();
+                let lastChangeAt = Date.now();
+                let lastTotal = -1;
                 let peakBuffered = 0;
                 let peakQueued = 0;
                 let shown = 0;
@@ -2048,8 +2303,13 @@
                     ratio = drained ? 1 : Math.min(0.98, ratio);
                     shown = Math.max(shown, ratio);
                     onProgress(shown);
-                    if (drained || Date.now() - startedAt > 180000) {
-                        resolve();
+                    const total = buffered + queued;
+                    if (lastTotal < 0 || total < lastTotal) lastChangeAt = Date.now();
+                    lastTotal = total;
+                    if (drained) {
+                        resolve(true);
+                    } else if (Date.now() - lastChangeAt > SEND_STALL_MS || Date.now() - startedAt > 180000) {
+                        resolve(false);
                     } else {
                         setTimeout(tick, 100);
                     }
@@ -2070,8 +2330,9 @@
                 showToast('이전 전송이 끝난 뒤에 다시 시도해주세요.', 'warning');
                 return;
             }
-            if (!isRoomHost && !(guestHostConn && guestHostConn.open)) {
-                showToast('방장과 연결되지 않았습니다. [재탐색]을 눌러주세요.', 'warning');
+            if (!isRoomHost && !guestLinkAlive()) {
+                showToast('방장과 연결이 불안정합니다. 다시 연결하는 중이니 잠시 후 다시 보내주세요.', 'warning');
+                if (guestHostConn && guestHostConn.open) scheduleReconnect('전송 전 점검: 방장 응답 없음 → 재탐색', true);
                 return;
             }
 
@@ -2105,11 +2366,15 @@
 
             transferInProgress = true;
             let doneBytes = 0;
+            let stalled = false;
+            const batchIds = [];
             try {
                 for (const f of items) {
                     const bytes = itemBytes(f);
+                    const transferId = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
                     const packet = {
                         type: 'FILE_TRANSFER',
+                        transferId,
                         senderId: deviceId,
                         senderName: appState.nickname,
                         roomCode: appState.roomCode,
@@ -2126,12 +2391,19 @@
                         packet.fileBuffer = await f.fileObj.arrayBuffer();
                     }
 
+                    trackFileAck(transferId, f.filename, selectedPeers);
+                    batchIds.push(transferId);
                     const used = sendPacketToTargets(packet, targetIds);
                     if (used.length === 0) {
                         throw new Error('연결된 대상에게 보낼 수 없습니다');
                     }
-                    await waitForSendDrain(used, (r) => setTransferProgress((doneBytes + bytes * r) / totalBytes));
+                    const sentOk = await waitForSendDrain(used, (r) => setTransferProgress((doneBytes + bytes * r) / totalBytes));
+                    if (!sentOk) {
+                        stalled = true;
+                        throw new Error('상대 기기로 데이터가 전달되지 않습니다(연결 끊김 의심)');
+                    }
                     doneBytes += bytes;
+                    armAckTimer(transferId);
 
                     addHistoryItem({
                         id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
@@ -2150,11 +2422,16 @@
                 setTransferProgress(1);
                 progressFilename.textContent = `${label} 전송 완료!`;
                 setTimeout(() => progressBox.classList.add('hidden'), 350);
-                showToast(`'${label}' 파일을 조원들에게 전송했습니다!`);
+                if (batchIds.some(id => pendingAcks[id])) {
+                    showToast(`'${label}' 파일을 보냈습니다. 상대 수신 확인을 기다리는 중...`);
+                }
             } catch (err) {
                 progressBox.classList.add('hidden');
                 appendDebugLog(`전송 오류: ${err && err.message ? err.message : err}`);
-                showToast('파일 전송 중 오류가 발생했습니다. 연결 상태를 확인해주세요.', 'warning');
+                showToast(stalled
+                    ? '상대에게 전달되지 못했습니다. 상대 앱이 꺼져 있거나 연결이 끊겼을 수 있어요. 연결을 새로 확인합니다.'
+                    : '파일 전송 중 오류가 발생했습니다. 연결 상태를 확인해주세요.', 'warning');
+                if (stalled && !isRoomHost) scheduleReconnect('전송 실패 → 연결 재확인', true);
             } finally {
                 transferInProgress = false;
             }
@@ -2513,7 +2790,10 @@
             handleIncomingWebShareTarget();
             handleIncomingSharedInbox();
             window.addEventListener('click', () => {
-                if (appState.isConnected) requestNotifyPermission();
+                if (appState.isConnected) {
+                    requestNotifyPermission();
+                    startKeepAlive();
+                }
             }, { capture: true, passive: true });
             lucide.createIcons();
         });
