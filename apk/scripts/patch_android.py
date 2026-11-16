@@ -29,8 +29,8 @@ jsrc = os.path.join(APK, 'native', 'java', *APP_ID.split('.'))
 for fn in os.listdir(jsrc):
     shutil.copy(os.path.join(jsrc, fn), os.path.join(jdst, fn))
     print('복사:', fn)
-os.makedirs(os.path.join(MAIN, 'res', 'drawable'), exist_ok=True)
-shutil.copy(os.path.join(APK, 'native', 'res', 'drawable', 'ic_stat_gyenam.xml'), os.path.join(MAIN, 'res', 'drawable', 'ic_stat_gyenam.xml'))
+shutil.copytree(os.path.join(APK, 'native', 'res'), os.path.join(MAIN, 'res'), dirs_exist_ok=True)
+print('리소스 복사 완료')
 
 # 2) AndroidManifest ---------------------------------------------------
 mp = os.path.join(MAIN, 'AndroidManifest.xml')
@@ -47,6 +47,15 @@ service_xml = '''        <service
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="peer-to-peer file sharing connection kept alive while the app is in the background" />
         </service>
+        <provider
+            android:name=".GyenamFileProvider"
+            android:authorities="${applicationId}.gyenamfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/gyenam_file_paths" />
+        </provider>
 '''
 share_xml = '''            <intent-filter>
                 <action android:name="android.intent.action.SEND" />

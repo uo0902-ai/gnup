@@ -1,6 +1,7 @@
 package kr.ms.gyenam.fileupdown;
 
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -13,6 +14,7 @@ import android.os.PowerManager;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.util.Base64;
+import android.webkit.MimeTypeMap;
 
 import androidx.core.content.ContextCompat;
 
@@ -292,7 +294,10 @@ public class GyenamNativePlugin extends Plugin {
             JSObject r = new JSObject();
             r.put("name", finalName);
             r.put("location", s.location);
-            if (s.file != null) r.put("uri", "file://" + s.file.getAbsolutePath());
+            if (s.file != null) {
+                r.put("uri", "file://" + s.file.getAbsolutePath());
+                r.put("path", s.file.getAbsolutePath());
+            }
             call.resolve(r);
         } catch (Exception e) {
             call.reject("저장 마무리 실패: " + e.getMessage());
@@ -318,6 +323,47 @@ public class GyenamNativePlugin extends Plugin {
             }
         }
         call.resolve();
+    }
+
+    // ---------------------------------------------------------------- 파일 열기
+    /** 앱 임시 폴더(cache)에 저장해 둔 파일을 휴대폰의 다른 앱(사진, PDF, 문서 보기 등)으로 엶 */
+    @PluginMethod
+    public void openFile(PluginCall call) {
+        try {
+            String path = call.getString("path");
+            String mime = call.getString("mime", "");
+            if (path == null) {
+                call.reject("파일 위치가 없습니다");
+                return;
+            }
+            File f = new File(path);
+            String cacheRoot = getContext().getCacheDir().getCanonicalPath() + File.separator;
+            if (!f.exists() || !f.getCanonicalPath().startsWith(cacheRoot)) {
+                call.reject("열 수 없는 파일 위치입니다");
+                return;
+            }
+            if (mime == null || mime.isEmpty() || "application/octet-stream".equals(mime)) {
+                String name = f.getName();
+                int dot = name.lastIndexOf('.');
+                String ext = dot >= 0 ? name.substring(dot + 1).toLowerCase() : "";
+                String guessed = ext.isEmpty() ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+                mime = guessed != null ? guessed : "*/*";
+            }
+            Context ctx = getContext();
+            Uri uri = GyenamFileProvider.getUriForFile(ctx, ctx.getPackageName() + ".gyenamfiles", f);
+            Intent view = new Intent(Intent.ACTION_VIEW);
+            view.setDataAndType(uri, mime);
+            view.setClipData(ClipData.newRawUri("", uri));
+            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent chooser = Intent.createChooser(view, "파일 열기");
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(chooser);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("열 수 있는 앱이 없습니다");
+        } catch (Exception e) {
+            call.reject("파일 열기 실패: " + e.getMessage());
+        }
     }
 
     // ---------------------------------------------------------------- 공유 수신

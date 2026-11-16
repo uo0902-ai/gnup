@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.1)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.1)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.1';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.2)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.2)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.2';
 -->
 <html lang="ko">
 <head>
@@ -285,6 +285,12 @@
                     <div id="file-history-list" class="space-y-2.5">
                         <!-- JS 동적 렌더링 -->
                     </div>
+                    <div id="history-clear-row" class="hidden mt-3 text-right">
+                        <button type="button" onclick="clearHistoryList()" id="btn-clear-history" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold transition active:scale-95">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                            <span id="btn-clear-history-text">내역 모두 삭제</span>
+                        </button>
+                    </div>
                 </section>
 
                 <!-- 숨겨진 연결 진단 로그 패널 (좌측 상단 '계남중 파일업다운' 7번 연속 탭 시 활성화) -->
@@ -304,11 +310,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.1 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.2 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.1</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.2</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -527,7 +533,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.1';
+        const APP_VERSION = 'v3.2';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1439,10 +1445,10 @@
         }
 
         // target: 'downloads'(다운로드 폴더에 저장) | 'cache'(다른 앱 공유용 임시 파일)
-        async function saveBlobNative(blob, filename, target) {
+        async function saveBlobNative(blob, filename, target, mime) {
             const bg = getNativePlugin('GyenamNative');
             if (!bg) throw new Error('앱 기능을 사용할 수 없습니다');
-            const begin = await bg.saveBegin({ name: filename, mime: blob.type || '', target });
+            const begin = await bg.saveBegin({ name: filename, mime: mime || blob.type || '', target });
             try {
                 const CHUNK = 384 * 1024;
                 for (let off = 0; off < blob.size; off += CHUNK) {
@@ -2358,6 +2364,13 @@
                 return item.type === appState.currentFilter;
             });
 
+            const clearRow = document.getElementById('history-clear-row');
+            if (clearRow) {
+                clearRow.classList.toggle('hidden', filtered.length === 0);
+                const labelMap = { all: '내역 모두 삭제', received: '수신 내역 모두 삭제', sent: '송신 내역 모두 삭제' };
+                document.getElementById('btn-clear-history-text').textContent = labelMap[appState.currentFilter] || '내역 모두 삭제';
+            }
+
             if (filtered.length === 0) {
                 listContainer.innerHTML = `
                     <div class="text-center py-6 text-slate-400 text-xs">
@@ -2379,7 +2392,7 @@
 
                 return `
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 transition">
-                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div onclick="openHistoryFile('${item.id}')" title="눌러서 열기" class="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
                             <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-xs">
                                 ${fileIcon}
                             </div>
@@ -2391,17 +2404,21 @@
                                     <span class="text-[10px] text-slate-400">${escapeHtml(item.time)}</span>
                                 </div>
                                 <p class="text-xs font-extrabold text-slate-800 truncate">${escapeHtml(item.filename)}</p>
-                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)}</p>
+                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)} <span class="text-slate-400">· 눌러서 열기</span></p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1.5 ml-2 shrink-0">
+                        <div class="flex items-center gap-1 ml-2 shrink-0">
                             <button onclick="shareHistoryFileNative('${item.id}')" title="다른 앱으로 공유하기" 
-                                class="w-9 h-9 rounded-xl bg-white hover:bg-slate-800 text-slate-600 hover:text-white border border-slate-200 flex items-center justify-center transition shadow-xs">
+                                class="w-8 h-8 rounded-xl bg-white hover:bg-slate-800 text-slate-600 hover:text-white border border-slate-200 flex items-center justify-center transition shadow-xs">
                                 <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
                             </button>
                             <button onclick="downloadHistoryFile('${item.id}')" title="내 기기에 저장" 
-                                class="w-9 h-9 rounded-xl bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 hover:border-indigo-600 flex items-center justify-center transition shadow-xs">
+                                class="w-8 h-8 rounded-xl bg-white hover:bg-indigo-600 text-indigo-600 hover:text-white border border-slate-200 hover:border-indigo-600 flex items-center justify-center transition shadow-xs">
                                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="deleteHistoryItem('${item.id}')" title="내역에서 삭제" 
+                                class="w-8 h-8 rounded-xl bg-white hover:bg-rose-500 text-rose-500 hover:text-white border border-slate-200 hover:border-rose-500 flex items-center justify-center transition shadow-xs">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
                     </div>
@@ -2445,6 +2462,82 @@
                     showToast('공유 창을 여는 중 문제가 발생했습니다.', 'warning');
                 }
             }
+        }
+
+        // ---- 파일 열기 / 내역 삭제 ----
+        const MIME_BY_EXT = {
+            txt: 'text/plain', md: 'text/plain', csv: 'text/csv', json: 'application/json', log: 'text/plain',
+            html: 'text/html', htm: 'text/html', css: 'text/css', js: 'text/plain', py: 'text/plain',
+            pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+            webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml', mp3: 'audio/mpeg', wav: 'audio/wav',
+            m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', zip: 'application/zip',
+            hwp: 'application/x-hwp', hwpx: 'application/x-hwpx', doc: 'application/msword',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        };
+        // 웹 브라우저 안에서 열면 이 앱과 같은 권한으로 코드가 실행될 수 있는 형식 → 글자로만 보여줌
+        const WEB_UNSAFE_MIME = /^(text\/html|application\/xhtml\+xml|image\/svg\+xml|text\/xml|application\/xml|text\/javascript|application\/javascript)/i;
+
+        function guessMime(filename, given) {
+            if (given && given !== 'application/octet-stream') return given.split(';')[0];
+            const ext = String(filename || '').split('.').pop().toLowerCase();
+            return MIME_BY_EXT[ext] || 'application/octet-stream';
+        }
+
+        async function openHistoryFile(itemId) {
+            const item = appState.history.find(i => i.id === itemId);
+            if (!item) return;
+            if (!item.fileObj && !item.content) {
+                showToast('이 항목은 파일 내용이 남아 있지 않아 열 수 없습니다. (앱을 껐다 켜면 파일 내용은 지워집니다)', 'warning');
+                return;
+            }
+            const blob = item.fileObj || new Blob([item.content], { type: 'text/plain;charset=utf-8' });
+            const mime = guessMime(item.filename, blob.type);
+            try {
+                if (IS_NATIVE) {
+                    const saved = await saveBlobNative(blob, item.filename, 'cache', mime);
+                    await getNativePlugin('GyenamNative').openFile({ path: saved.path, mime });
+                    return;
+                }
+                const safeMime = WEB_UNSAFE_MIME.test(mime) ? 'text/plain' : mime;
+                const url = URL.createObjectURL(new Blob([blob], { type: safeMime }));
+                const w = window.open(url, '_blank');
+                setTimeout(() => URL.revokeObjectURL(url), 120000);
+                if (!w) {
+                    URL.revokeObjectURL(url);
+                    downloadHistoryFile(itemId);
+                }
+            } catch (e) {
+                appendDebugLog('파일 열기 오류: ' + errText(e));
+                if (/열 수 있는 앱/.test(errText(e))) {
+                    showToast('이 파일을 열 수 있는 앱이 없습니다. 저장 버튼으로 저장해서 확인해주세요.', 'warning');
+                } else {
+                    showToast('파일을 여는 중 오류가 발생했습니다.', 'warning');
+                }
+            }
+        }
+
+        function deleteHistoryItem(itemId) {
+            const idx = appState.history.findIndex(i => i.id === itemId);
+            if (idx < 0) return;
+            const [removed] = appState.history.splice(idx, 1);
+            saveSessionState();
+            renderHistory();
+            showToast(`'${removed.filename}' 내역을 삭제했습니다.`);
+        }
+
+        function clearHistoryList() {
+            const f = appState.currentFilter;
+            const matches = (i) => f === 'all' || i.type === f;
+            const count = appState.history.filter(matches).length;
+            if (count === 0) return;
+            const label = f === 'received' ? '수신 내역' : f === 'sent' ? '송신 내역' : '주고받은 내역';
+            if (!confirm(`${label} ${count}개를 모두 삭제할까요?\n(이미 기기에 저장한 파일은 지워지지 않습니다)`)) return;
+            appState.history = appState.history.filter(i => !matches(i));
+            saveSessionState();
+            renderHistory();
+            showToast(`${label} ${count}개를 삭제했습니다.`);
         }
 
         async function downloadHistoryFile(itemId) {
