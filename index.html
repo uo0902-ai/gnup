@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.4)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.4)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.4';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.5)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.5)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.5';
 -->
 <html lang="ko">
 <head>
@@ -142,6 +142,8 @@
                     </label>
                 </div>
             </div>
+
+            <p id="log-notice" class="hidden mt-3 text-[11px] text-slate-500 leading-snug">※ 수업 관리를 위해 파일·메시지 전송 기록(시간, 이름, 기기, 파일명, 메시지 내용 등)이 교사에게 기록됩니다.</p>
 
             <!-- 하단 접속 버튼 -->
             <div class="mt-4 space-y-2">
@@ -324,11 +326,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.4 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.5 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.4</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.5</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -515,6 +517,16 @@
         <!-- ========================================== -->
         <!-- 토스트 알림 메시지 박스                     -->
         <!-- ========================================== -->
+        <!-- 텍스트 메시지 팝업 (링크는 눌러서 바로 접속) -->
+        <div id="text-popup" class="hidden absolute top-4 left-4 right-4 z-[65] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0"><i data-lucide="message-square" class="w-4 h-4"></i></div>
+                <p class="text-xs font-extrabold flex-1">메시지가 도착했습니다</p>
+                <button type="button" onclick="closeTextPopup()" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold">닫기</button>
+            </div>
+            <div id="text-popup-list" class="space-y-1.5 max-h-60 overflow-y-auto"></div>
+        </div>
+
         <div id="incoming-popup" class="hidden absolute top-4 left-4 right-4 z-[60] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
             <div class="flex items-start gap-2.5">
                 <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
@@ -547,7 +559,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.4';
+        const APP_VERSION = 'v3.5';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1015,6 +1027,109 @@
             }
         }
 
+        // ==========================================
+        // 전송 기록 (교사용 구글 시트에 기록: 앱스 스크립트 웹앱 주소가 비어 있으면 기록하지 않음)
+        // ==========================================
+        let LOG_ENDPOINT = '';   // ← 교사가 배포한 앱스 스크립트 웹앱 주소(https://script.google.com/macros/s/.../exec)
+        const LOG_TOKEN = 'gyenam-c2f9f473b99507fbbb1e';
+        const LOG_QUEUE_KEY = 'gyenam_log_queue_v1';
+        const INSTALL_ID_KEY = 'gyenam_install_id';
+        let installId = '';
+        try {
+            installId = localStorage.getItem(INSTALL_ID_KEY) || '';
+            if (!installId) {
+                installId = 'inst_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+                localStorage.setItem(INSTALL_ID_KEY, installId);
+            }
+        } catch (e) { installId = installId || ('inst_tmp_' + Math.random().toString(36).slice(2, 10)); }
+        let nativeDeviceInfo = null;
+        let logFlushing = false;
+
+        function detectPlatform() {
+            if (IS_NATIVE) return '안드로이드 앱';
+            const ua = navigator.userAgent || '';
+            if (/iPhone|iPod/i.test(ua)) return '아이폰(웹)';
+            if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return '아이패드(웹)';
+            if (/Android/i.test(ua)) return '안드로이드(웹)';
+            if (/CrOS/i.test(ua)) return '크롬북(웹)';
+            if (/Windows/i.test(ua)) return 'PC-윈도우(웹)';
+            if (/Macintosh/i.test(ua)) return 'PC-맥(웹)';
+            if (/Linux/i.test(ua)) return 'PC-리눅스(웹)';
+            return '기타(웹)';
+        }
+
+        async function loadNativeDeviceInfo() {
+            if (!IS_NATIVE) return {};
+            if (nativeDeviceInfo) return nativeDeviceInfo;
+            try {
+                const bg = getNativePlugin('GyenamNative');
+                nativeDeviceInfo = (bg && bg.getDeviceInfo) ? (await bg.getDeviceInfo()) || {} : {};
+            } catch (e) { nativeDeviceInfo = {}; }
+            return nativeDeviceInfo;
+        }
+
+        function readLogQueue() {
+            try { return JSON.parse(localStorage.getItem(LOG_QUEUE_KEY) || '[]'); } catch (e) { return []; }
+        }
+        function writeLogQueue(q) {
+            try { localStorage.setItem(LOG_QUEUE_KEY, JSON.stringify(q.slice(-500))); } catch (e) {}
+        }
+
+        // ev: { dir:'송신'|'수신'|'수신확인', peer, kind:'파일'|'메시지', filename, size, result, text, transferId }
+        async function logTransfer(ev) {
+            if (!LOG_ENDPOINT) return;
+            try {
+                const info = await loadNativeDeviceInfo();
+                const row = Object.assign({
+                    t: Date.now(),
+                    nick: appState.nickname || '',
+                    room: appState.roomCode || '',
+                    deviceId,
+                    installId,
+                    androidId: info.androidId || '',
+                    model: info.model || '',
+                    platform: detectPlatform(),
+                    appVer: APP_VERSION
+                }, ev);
+                if (row.text && row.text.length > 3000) row.text = row.text.slice(0, 3000) + '…(생략)';
+                const q = readLogQueue();
+                q.push(row);
+                writeLogQueue(q);
+                flushLogQueue();
+            } catch (e) {}
+        }
+
+        async function flushLogQueue() {
+            if (!LOG_ENDPOINT || logFlushing) return;
+            logFlushing = true;
+            try {
+                for (let guard = 0; guard < 50; guard++) {
+                    const q = readLogQueue();
+                    if (!q.length) break;
+                    const batch = q.slice(0, 20);
+                    await fetch(LOG_ENDPOINT, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ token: LOG_TOKEN, rows: batch })
+                    });
+                    const cur = readLogQueue();
+                    cur.splice(0, batch.length);
+                    writeLogQueue(cur);
+                }
+            } catch (e) { /* 인터넷이 없으면 기기에 쌓아 두었다가 다음에 다시 보냄 */ }
+            logFlushing = false;
+        }
+
+        function initTransferLog() {
+            const notice = document.getElementById('log-notice');
+            if (notice && LOG_ENDPOINT) notice.classList.remove('hidden');
+            if (IS_NATIVE) loadNativeDeviceInfo();
+            setInterval(flushLogQueue, 30000);
+            window.addEventListener('online', flushLogQueue);
+            flushLogQueue();
+        }
+
         function handleFileAckPacket(msg) {
             const mine = Array.isArray(msg.targetIds) && msg.targetIds.includes(deviceId);
             if (isRoomHost && !mine) {
@@ -1027,6 +1142,7 @@
             pending.got.add(msg.senderId);
             appendDebugLog(`수신 확인: ${msg.senderName} 님이 '${pending.filename}' 파일을 받음`);
             showToast(`✅ ${msg.senderName}님이 '${pending.filename}' 파일을 받았습니다.`);
+            logTransfer({ dir: '수신확인', peer: msg.senderName, filename: pending.filename, result: '수신 확인', transferId: msg.transferId });
             if (pending.got.size >= pending.expected.size) {
                 clearTimeout(pending.timer);
                 delete pendingAcks[msg.transferId];
@@ -1051,6 +1167,7 @@
                 delete pendingAcks[transferId];
                 if (missing.length === 0) return;
                 appendDebugLog(`수신 확인 없음: ${missing.join(', ')} ('${pending.filename}')`);
+                logTransfer({ dir: '수신확인', peer: missing.join(', '), filename: pending.filename, result: '수신 확인 없음', transferId });
                 showToast(`⚠ ${missing.join(', ')}님의 수신 확인이 없습니다. 상대 앱이 백그라운드/절전 상태일 수 있어요. 앱을 켠 뒤 다시 보내주세요.`, 'warning');
             }, ACK_WAIT_MS);
         }
@@ -1076,8 +1193,10 @@
             if (msg.fileBuffer) {
                 blob = new Blob([msg.fileBuffer], { type: msg.fileType || 'application/octet-stream' });
             }
+            const isTextMsg = msg.kind === 'text';
             addHistoryItem({
                 id: 'rx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                kind: isTextMsg ? 'text' : 'file',
                 type: 'received',
                 sender: msg.senderName,
                 receiver: '나',
@@ -1086,9 +1205,10 @@
                 time: getCurrentTime(),
                 ext: msg.ext,
                 fileObj: blob,
-                saved: false,
+                saved: isTextMsg,
                 content: blob ? '' : (msg.content || '')
             });
+            logTransfer({ dir: '수신', peer: msg.senderName, kind: isTextMsg ? '메시지' : '파일', filename: msg.filename, size: msg.size, result: '수신 완료', text: isTextMsg ? (msg.content || '') : '', transferId: msg.transferId });
             appendDebugLog(`파일 수신 완료: ${msg.filename} (보낸이: ${msg.senderName})`);
             if (msg.transferId) sendFileAck(msg);
             notifyIncomingFile(appState.history[0]);
@@ -1536,7 +1656,7 @@
         function openExternalUrl(url) {
             const bg = getNativePlugin('GyenamNative');
             if (bg) bg.openUrl({ url }).catch(() => window.open(url, '_blank'));
-            else window.open(url, '_blank');
+            else window.open(url, '_blank', 'noopener');
         }
 
         function blobToBase64(blob) {
@@ -2251,7 +2371,7 @@
 
             const noteFilename = `메모_${getCurrentTime().replace(':', '')}.txt`;
             input.value = '';
-            startFileTransfer(noteFilename, formatFileSize(new Blob([text]).size), 'txt', null, text);
+            startFileTransfer(noteFilename, formatFileSize(new Blob([text]).size), 'txt', null, text, null, true);
         }
 
         function setTransferProgress(ratio) {
@@ -2330,7 +2450,7 @@
             });
         }
 
-        async function startFileTransfer(filename, sizeStr, ext, realFileObj = null, dummyContent = '', batchFiles = null) {
+        async function startFileTransfer(filename, sizeStr, ext, realFileObj = null, dummyContent = '', batchFiles = null, asText = false) {
             markActivity();
             const allPeers = getCombinedPeers();
             const selectedPeers = allPeers.filter(p => p.selected);
@@ -2386,6 +2506,7 @@
                     const transferId = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
                     const packet = {
                         type: 'FILE_TRANSFER',
+                        kind: asText ? 'text' : 'file',
                         transferId,
                         senderId: deviceId, appVer: APP_VERSION,
                         senderName: appState.nickname,
@@ -2417,8 +2538,10 @@
                     doneBytes += bytes;
                     armAckTimer(transferId);
 
+                    logTransfer({ dir: '송신', peer: receiverNames, kind: asText ? '메시지' : '파일', filename: f.filename, size: f.size, result: '전송됨', text: asText ? (f.content || '') : '', transferId });
                     addHistoryItem({
                         id: 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5),
+                        kind: asText ? 'text' : 'file',
                         type: 'sent',
                         sender: appState.nickname,
                         receiver: receiverNames,
@@ -2440,6 +2563,7 @@
             } catch (err) {
                 progressBox.classList.add('hidden');
                 appendDebugLog(`전송 오류: ${err && err.message ? err.message : err}`);
+                logTransfer({ dir: '송신', peer: receiverNames, kind: asText ? '메시지' : '파일', filename: label, size: '', result: '실패: ' + (err && err.message ? err.message : err) });
                 showToast(stalled
                     ? '상대에게 전달되지 못했습니다. 상대 앱이 꺼져 있거나 연결이 끊겼을 수 있어요. 연결을 새로 확인합니다.'
                     : '파일 전송 중 오류가 발생했습니다. 연결 상태를 확인해주세요.', 'warning');
@@ -2549,7 +2673,9 @@
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                     : 'bg-blue-50 text-blue-700 border-blue-200';
                 const badgeText = isReceived ? `수신 • ${item.sender}` : `송신 → ${item.receiver}`;
-                const fileIcon = getFileIconHtml(item.ext);
+                const isTextItem = item.kind === 'text';
+                const fileIcon = isTextItem ? '<i data-lucide="message-square" class="w-4 h-4 text-indigo-600"></i>' : getFileIconHtml(item.ext);
+                const rowTitle = isTextItem ? String(item.content || '').replace(/\s+/g, ' ').slice(0, 60) : item.filename;
 
                 return `
                     <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-100 transition">
@@ -2564,8 +2690,8 @@
                                     </span>
                                     <span class="text-[10px] text-slate-400">${escapeHtml(item.time)}</span>
                                 </div>
-                                <p class="text-xs font-extrabold text-slate-800 truncate">${escapeHtml(item.filename)}</p>
-                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)} <span class="text-slate-400">· 눌러서 열기</span>${isReceived ? (item.saved ? ' <span class="text-emerald-600 font-bold">· 저장됨</span>' : ' <span class="text-amber-600 font-bold">· 저장 전</span>') : ''}</p>
+                                <p class="text-xs font-extrabold text-slate-800 truncate">${isTextItem ? '💬 ' : ''}${escapeHtml(rowTitle)}</p>
+                                <p class="text-[10px] text-slate-500">${escapeHtml(item.size)} <span class="text-slate-400">· ${isTextItem ? '눌러서 보기' : '눌러서 열기'}</span>${(isReceived && !isTextItem) ? (item.saved ? ' <span class="text-emerald-600 font-bold">· 저장됨</span>' : ' <span class="text-amber-600 font-bold">· 저장 전</span>') : ''}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-1 ml-2 shrink-0">
@@ -2649,6 +2775,7 @@
         async function openHistoryFile(itemId) {
             const item = appState.history.find(i => i.id === itemId);
             if (!item) return;
+            if (item.kind === 'text') { addTextPopupMessage(item); return; }
             const blob = await getItemBlob(item);
             if (!blob) {
                 showToast('이 항목은 파일 내용이 남아 있지 않아 열 수 없습니다.', 'warning');
@@ -2773,6 +2900,44 @@
             document.getElementById('incoming-popup').classList.add('hidden');
         }
 
+        // ---- 텍스트 메시지 팝업: 링크는 눌러서 바로 접속 ----
+        function linkifyText(text) {
+            const esc = escapeHtml(text);
+            return esc.replace(/(https?:\/\/[^\s<>"']+)/gi, (m) => {
+                const clean = m.replace(/[.,;:!?)\]]+$/, '');
+                const tail = m.slice(clean.length);
+                return `<a href="#" data-u="${clean}" onclick="openExternalUrl(this.dataset.u);return false;" class="text-indigo-600 underline break-all font-bold">${clean}</a>${tail}`;
+            });
+        }
+
+        let textPopupItems = [];
+        function addTextPopupMessage(item) {
+            if (!item) return;
+            if (!textPopupItems.some(i => i.id === item.id)) textPopupItems.push(item);
+            renderTextPopup();
+        }
+        function renderTextPopup() {
+            const box = document.getElementById('text-popup');
+            const list = document.getElementById('text-popup-list');
+            if (!box || !list) return;
+            if (textPopupItems.length === 0) { box.classList.add('hidden'); return; }
+            list.innerHTML = textPopupItems.map(i => `
+                <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <span class="text-[10px] font-bold px-1.5 rounded border ${i.type === 'received' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-blue-50 text-blue-700 border-blue-200'}">${escapeHtml(i.type === 'received' ? i.sender : '내가 보냄 → ' + i.receiver)}</span>
+                        <span class="text-[10px] text-slate-400">${escapeHtml(i.time || '')}</span>
+                    </div>
+                    <p class="text-xs text-slate-800 whitespace-pre-wrap break-words leading-relaxed">${linkifyText(i.content || '')}</p>
+                </div>`).join('');
+            box.classList.remove('hidden');
+            list.scrollTop = list.scrollHeight;
+            lucide.createIcons();
+        }
+        function closeTextPopup() {
+            textPopupItems = [];
+            renderTextPopup();
+        }
+
         async function downloadFromIncomingPopup() {
             const id = incomingPopupItemId, it = incomingPopupItem;
             closeIncomingPopup();
@@ -2780,8 +2945,9 @@
         }
 
         async function showSystemNotification(item) {
-            const title = `📩 ${item.sender}님이 파일을 보냈습니다`;
-            const body = `${item.filename} (${item.size})`;
+            const isText = item.kind === 'text';
+            const title = isText ? `💬 ${item.sender}님의 메시지` : `📩 ${item.sender}님이 파일을 보냈습니다`;
+            const body = isText ? String(item.content || '').slice(0, 300) : `${item.filename} (${item.size})`;
             if (IS_NATIVE) {
                 try {
                     const ln = getNativePlugin('LocalNotifications');
@@ -2796,7 +2962,7 @@
                         body,
                         channelId: 'gyenam_files',
                         smallIcon: 'ic_stat_gyenam',
-                        actionTypeId: 'FILE_RECEIVED',
+                        ...(isText ? {} : { actionTypeId: 'FILE_RECEIVED' }),
                         extra: { itemId: item.id }
                     }] });
                 } catch (e) {
@@ -2807,13 +2973,18 @@
             try {
                 if (!('Notification' in window) || Notification.permission !== 'granted') return;
                 const n = new Notification(title, { body, tag: 'gyenam-' + item.id });
-                n.onclick = () => { window.focus(); n.close(); showIncomingFilePopup(item, false); };
+                n.onclick = () => { window.focus(); n.close(); if (isText) addTextPopupMessage(item); else showIncomingFilePopup(item, false); };
             } catch (e) {}
         }
 
         function notifyIncomingFile(item) {
             if (!item) return;
             const away = IS_NATIVE ? !nativeAppActive : (document.hidden || !document.hasFocus());
+            if (item.kind === 'text') {
+                addTextPopupMessage(item);              // 앱을 쓰는 중이면 바로 보이고, 아닐 때는 돌아왔을 때 보임
+                if (away) showSystemNotification(item); // 앱 밖이면 상단 알림도 띄움
+                return;
+            }
             if (away) {
                 showSystemNotification(item);
                 showIncomingFilePopup(item, false);
@@ -2830,6 +3001,7 @@
                 showToast('받은 파일을 찾지 못했습니다. (내역에서 삭제되었거나 앱이 다시 시작되었습니다)', 'warning');
                 return;
             }
+            if (item.kind === 'text') { addTextPopupMessage(item); return; }
             showIncomingFilePopup(item, false);
             if (ev.actionId === 'download') downloadHistoryFile(item.id, item);
         }
@@ -2941,6 +3113,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             initAppInfo();
             silentUpdateCheck(true);
+            initTransferLog();
             initPageLeaveNotifier();
             setupScreenLockAutoTerminate();
             setupIdleAutoDisconnect();

@@ -369,6 +369,21 @@ public class GyenamNativePlugin extends Plugin {
         }
     }
 
+    // ---------------------------------------------------------------- 기기 정보 (전송 기록용)
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        JSObject o = new JSObject();
+        try {
+            String aid = Settings.Secure.getString(getContext().getContentResolver(), Settings.Secure.ANDROID_ID);
+            o.put("androidId", aid == null ? "" : aid);
+        } catch (Exception e) {
+            o.put("androidId", "");
+        }
+        o.put("model", (Build.MANUFACTURER == null ? "" : Build.MANUFACTURER) + " " + (Build.MODEL == null ? "" : Build.MODEL));
+        o.put("sdk", Build.VERSION.SDK_INT);
+        call.resolve(o);
+    }
+
     // ---------------------------------------------------------------- 앱 자동 업데이트
     /** 새 APK를 앱 안에서 내려받아(진행률 알림) 설치 화면을 띄움. 최종 [설치]는 안드로이드 정책상 사용자가 직접 누름 */
     @PluginMethod
