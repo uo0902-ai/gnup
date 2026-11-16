@@ -1,0 +1,14 @@
+{
+  "appId": "kr.ms.gyenam.fileupdown",
+  "appName": "계남중 파일업다운",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_gyenam",
+      "iconColor": "#3730A3"
+    }
+  }
+}

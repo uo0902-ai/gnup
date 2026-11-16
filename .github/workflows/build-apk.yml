@@ -1,0 +1,85 @@
+name: 안드로이드 APK 빌드
+
+# GitHub 저장소의 [Actions] 탭 → [안드로이드 APK 빌드] → [Run workflow] 버튼을 누르면 실행됩니다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: 저장소 내려받기
+        uses: actions/checkout@v4
+
+      - name: Node 22 준비
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Java 21 준비
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 앱 버전 읽기 (index.html의 APP_VERSION)
+        id: ver
+        run: |
+          VER=$(grep -oP "const APP_VERSION = '\K[^']+" index.html)
+          test -n "$VER"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "앱 버전: $VER"
+
+      - name: 웹 파일을 앱 폴더로 복사
+        run: |
+          mkdir -p apk/www
+          cp index.html icon-192.png icon-512.png icon-maskable-512.png apk/www/
+
+      - name: 패키지 설치
+        working-directory: apk
+        run: npm install --no-audit --no-fund
+
+      - name: 안드로이드 프로젝트 만들기
+        working-directory: apk
+        run: npx cap add android
+
+      - name: 계남중 전용 설정 적용 (서비스·권한·서명·아이콘)
+        working-directory: apk
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          pip install pillow
+          python3 scripts/patch_android.py
+          npx cap sync android
+
+      - name: 안드로이드 SDK 사용 허가
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: APK 만들기
+        working-directory: apk/android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: APK 파일 이름 정리
+        run: cp apk/android/app/build/outputs/apk/release/app-release.apk "gyenam-fileupdown-${{ steps.ver.outputs.version }}.apk"
+
+      - name: 빌드 결과 보관 (Actions 화면에서 내려받기)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gyenam-fileupdown-${{ steps.ver.outputs.version }}
+          path: gyenam-fileupdown-${{ steps.ver.outputs.version }}.apk
+
+      - name: 릴리스 게시 (앱의 '업데이트 확인'이 이 릴리스를 확인함)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: 계남중 파일업다운 ${{ steps.ver.outputs.version }}
+          body: |
+            안드로이드 앱(APK)입니다. 휴대폰에서 아래 APK 파일을 받아 설치하세요.
+            기존 앱이 있으면 위에 덮어서 설치됩니다.
+          files: gyenam-fileupdown-${{ steps.ver.outputs.version }}.apk
+          make_latest: true

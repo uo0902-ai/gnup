@@ -1,21 +1,16 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v2.4)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v2.4)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v2.4';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.0)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.0)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.0';
 -->
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#3730a3">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="계남중 파일업다운">
     <title>계남중 파일업다운</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon-192.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -73,7 +68,7 @@
                 <span id="update-banner-text" class="truncate">새로운 버전이 준비되었습니다!</span>
             </div>
             <button onclick="applyAppUpdate()" class="px-3 py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold hover:bg-slate-800 shrink-0 transition active:scale-95">
-                지금 업데이트
+                다운로드
             </button>
         </div>
 
@@ -82,15 +77,11 @@
         <!-- ========================================== -->
         <div id="login-screen" class="flex-1 flex flex-col justify-between p-6 bg-gradient-to-b from-indigo-50/80 via-white to-slate-50 overflow-y-auto no-scrollbar">
             
-            <!-- 상단 PWA 설치 바 -->
+            <!-- 상단 바 -->
             <div class="flex items-center justify-between">
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-extrabold">
-                    <i data-lucide="wifi" class="w-3.5 h-3.5"></i> PWA SHARE
+                    <i data-lucide="wifi" class="w-3.5 h-3.5"></i> FILE SHARE
                 </span>
-                <button onclick="triggerPwaInstall()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 hover:bg-indigo-700 text-white text-[11px] font-bold shadow-xs transition active:scale-95">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                    <span>홈 화면에 앱 설치</span>
-                </button>
             </div>
 
             <!-- 중앙 앱 타이틀 -->
@@ -138,17 +129,12 @@
                 </div>
             </div>
 
-            <!-- 하단 접속 버튼 및 외부 공유 수신 테스트 -->
+            <!-- 하단 접속 버튼 -->
             <div class="mt-4 space-y-2">
                 <button onclick="joinRoom()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white font-bold text-base shadow-lg shadow-indigo-200 transition flex items-center justify-center gap-2">
                     <span>조원 탐색 및 방 접속하기</span>
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
-                <div class="flex items-center justify-center gap-3 pt-1">
-                    <button type="button" onclick="simulateExternalShareIncoming()" class="text-[11px] font-bold text-indigo-600 hover:underline flex items-center gap-1">
-                        <i data-lucide="share" class="w-3 h-3"></i> 외부 앱 공유 수신 테스트
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -166,11 +152,6 @@
                     </div>
 
                     <div class="flex items-center gap-1.5">
-                        <!-- PWA 설치 버튼 -->
-                        <button onclick="triggerPwaInstall()" title="홈 화면에 앱 설치" class="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-bold transition flex items-center gap-1">
-                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                            <span>앱 설치</span>
-                        </button>
                         <!-- 명시적 방 나가기(로그아웃) 버튼 -->
                         <button onclick="confirmLeaveRoom()" title="방 나가기(로그아웃)" class="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-rose-500 text-white text-[11px] font-bold transition flex items-center gap-1">
                             <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
@@ -267,13 +248,7 @@
                         </div>
                     </button>
 
-                    <!-- 외부 앱 공유 수신 테스트 및 빠른 텍스트 메모 -->
-                    <div class="mt-2.5 flex items-center justify-between gap-2">
-                        <button type="button" onclick="simulateExternalShareIncoming()" class="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-[11px] font-bold transition flex items-center justify-center gap-1.5 border border-slate-200/70">
-                            <i data-lucide="share" class="w-3.5 h-3.5 text-indigo-600"></i>
-                            <span>외부 앱 공유 수신 테스트</span>
-                        </button>
-                    </div>
+                    <!-- 빠른 텍스트 메모 -->
 
                     <form onsubmit="sendQuickTextNote(event)" class="mt-2 flex gap-2">
                         <input type="text" id="quick-note-input" placeholder="조원에게 빠른 텍스트 메모/링크 보내기..." 
@@ -329,11 +304,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v2.4 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.0 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v2.4</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.0</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -493,43 +468,6 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 모달 4: PWA 홈 화면 설치 안내 모달            -->
-        <!-- ========================================== -->
-        <div id="pwa-guide-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
-            <div class="bg-white w-full rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-4">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2.5">
-                        <div class="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                            <i data-lucide="smartphone" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-extrabold text-slate-900">홈 화면에 웹앱 설치 (PWA)</h3>
-                            <p class="text-[11px] text-slate-500">설치 시 다른 앱의 [공유] 목록에도 자동 등록됩니다</p>
-                        </div>
-                    </div>
-                    <button onclick="closePwaGuideModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                </div>
-
-                <div class="bg-slate-50 rounded-2xl p-3.5 space-y-2.5 text-xs text-slate-700 border border-slate-200/70">
-                    <div class="flex items-start gap-2">
-                        <span class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold shrink-0 mt-0.5">Android</span>
-                        <p class="leading-relaxed">크롬(Chrome) 우측 상단 <strong>[⋮ 메뉴] → [홈 화면에 추가]</strong> 또는 <strong>[앱 설치]</strong>를 누르면 바탕화면에 설치되고 다른 앱에서 공유 시 목록에 나타납니다.</p>
-                    </div>
-                    <div class="flex items-start gap-2 pt-2 border-t border-slate-200/70">
-                        <span class="px-1.5 py-0.5 rounded bg-slate-800 text-white text-[10px] font-bold shrink-0 mt-0.5">iOS</span>
-                        <p class="leading-relaxed">Safari 하단 <strong>[공유 버튼] → [홈 화면에 추가]</strong>를 선택해 앱처럼 실행할 수 있습니다.</p>
-                    </div>
-                </div>
-
-                <button onclick="closePwaGuideModal()" class="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition">
-                    확인했습니다
-                </button>
-            </div>
-        </div>
-
-        <!-- ========================================== -->
         <!-- 모달 5: 방 나가기(로그아웃) 확인 모달          -->
         <!-- ========================================== -->
         <div id="leave-confirm-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-5">
@@ -587,10 +525,9 @@
 
     <script>
         // ==========================================
-        // 0. 앱 버전 관리 및 원클릭 업데이트 상수
+        // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v2.4';
-        const VERSION_STORAGE_KEY = 'gyenam_app_version_installed';
+        const APP_VERSION = 'v3.0';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -599,8 +536,7 @@
         let lastActivityAt = Date.now();
         let idleCheckTimer = null;
         let pendingExternalShareItem = null;
-        let deferredInstallPrompt = null;
-        let swRegistration = null;
+        let latestUpdateUrl = '';
 
         // ==========================================
         // 진단 로그 기록 및 7번 연속 탭 핸들러
@@ -638,45 +574,13 @@
         }
 
         // ==========================================
-        // 1. PWA Manifest (Web Share Target) & Service Worker 등록/업데이트
+        // 1. 앱 정보 및 업데이트 확인 (APK: GitHub 릴리스의 최신 버전과 비교)
         // ==========================================
-        function initPwaInfrastructure() {
+        const UPDATE_API_URL = 'https://api.github.com/repos/uo0902-ai/gnup/releases/latest';
+
+        function initAppInfo() {
             document.getElementById('footer-version-text').textContent = `앱버전 ${APP_VERSION}`;
-
-            const installedVersion = localStorage.getItem(VERSION_STORAGE_KEY);
-            if (installedVersion && installedVersion !== APP_VERSION) {
-                showUpdateAvailableBanner(`새 버전(${APP_VERSION})이 감지되었습니다!`);
-            } else {
-                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
-            }
-
-            try {
-                if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
-                    navigator.serviceWorker.addEventListener('message', handleSwMessage);
-                    navigator.serviceWorker.register('./sw.js', { scope: './' }).then((reg) => {
-                        swRegistration = reg;
-                        reg.addEventListener('updatefound', () => {
-                            const newWorker = reg.installing;
-                            if (newWorker) {
-                                newWorker.addEventListener('statechange', () => {
-                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                        showUpdateAvailableBanner('새로운 앱 업데이트가 준비되었습니다!');
-                                    }
-                                });
-                            }
-                        });
-                    }).catch((err) => {
-                        appendDebugLog('서비스워커 등록 실패(sw.js 업로드 확인): ' + (err && err.message ? err.message : err));
-                    });
-                }
-            } catch (err) {
-                console.warn('PWA 초기화 건너뜀:', err);
-            }
-
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault();
-                deferredInstallPrompt = e;
-            });
+            appendDebugLog(IS_NATIVE ? `앱(APK) 모드 ${APP_VERSION}` : `웹 모드 ${APP_VERSION}`);
         }
 
         function showUpdateAvailableBanner(text) {
@@ -686,72 +590,57 @@
             lucide.createIcons();
         }
 
+        function compareVersions(a, b) {
+            const pa = String(a).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+            const pb = String(b).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+            for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+                const d = (pa[i] || 0) - (pb[i] || 0);
+                if (d !== 0) return d > 0 ? 1 : -1;
+            }
+            return 0;
+        }
+
+        // 반환: 'newer'(새 버전 있음) | 'latest'(최신) | 'error'
+        async function fetchUpdateState() {
+            try {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 8000);
+                const res = await fetch(UPDATE_API_URL, { cache: 'no-store', signal: ctrl.signal });
+                clearTimeout(t);
+                if (!res.ok) return 'error';
+                const rel = await res.json();
+                const tag = String(rel.tag_name || '');
+                if (!tag) return 'error';
+                const apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name || ''));
+                latestUpdateUrl = (apk && apk.browser_download_url) || rel.html_url || '';
+                if (compareVersions(tag, APP_VERSION) > 0) {
+                    showUpdateAvailableBanner(`새 버전(${tag})이 있습니다! 받아서 설치해주세요.`);
+                    return 'newer';
+                }
+                return 'latest';
+            } catch (e) {
+                return 'error';
+            }
+        }
+
         async function checkForAppUpdates() {
+            if (!IS_NATIVE) {
+                showToast('웹 버전은 새로고침하면 최신 버전이 적용됩니다.');
+                setTimeout(() => window.location.reload(), 500);
+                return;
+            }
             const icon = document.getElementById('update-check-icon');
             icon.classList.add('animate-spin');
             showToast(`현재 ${APP_VERSION} 최신 상태를 확인하고 있습니다...`);
-
-            try {
-                if (swRegistration) {
-                    await swRegistration.update();
-                }
-                if ('caches' in window) {
-                    const cacheNames = await caches.keys();
-                    const oldCaches = cacheNames.filter(name => !name.includes(APP_VERSION));
-                    if (oldCaches.length > 0) {
-                        await Promise.all(oldCaches.map(name => caches.delete(name)));
-                        icon.classList.remove('animate-spin');
-                        showUpdateAvailableBanner('오래된 캐시를 정리했습니다. 지금 적용할까요?');
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.warn('업데이트 확인 중 참고:', e);
-            }
-
-            setTimeout(() => {
-                icon.classList.remove('animate-spin');
-                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
-                showToast(`계남중 파일업다운 ${APP_VERSION} 최신 버전을 사용 중입니다!`);
-            }, 650);
+            const state = await fetchUpdateState();
+            icon.classList.remove('animate-spin');
+            if (state === 'latest') showToast(`계남중 파일업다운 ${APP_VERSION} 최신 버전을 사용 중입니다!`);
+            else if (state === 'error') showToast('업데이트 정보를 가져오지 못했습니다. 인터넷 연결을 확인해주세요.', 'warning');
         }
 
-        async function applyAppUpdate() {
-            try {
-                saveSessionState();
-                if ('caches' in window) {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(k => caches.delete(k)));
-                }
-                if (swRegistration && swRegistration.waiting) {
-                    swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                }
-                localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION);
-                showToast('최신 버전으로 업데이트를 적용합니다...');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 400);
-            } catch (e) {
-                window.location.reload();
-            }
-        }
-
-        async function triggerPwaInstall() {
-            if (deferredInstallPrompt) {
-                deferredInstallPrompt.prompt();
-                const { outcome } = await deferredInstallPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    showToast('계남중 파일업다운 웹앱이 홈 화면에 설치되었습니다!');
-                }
-                deferredInstallPrompt = null;
-            } else {
-                document.getElementById('pwa-guide-modal').classList.remove('hidden');
-                lucide.createIcons();
-            }
-        }
-
-        function closePwaGuideModal() {
-            document.getElementById('pwa-guide-modal').classList.add('hidden');
+        function applyAppUpdate() {
+            if (!latestUpdateUrl) { checkForAppUpdates(); return; }
+            openExternalUrl(latestUpdateUrl);
         }
 
         // ==========================================
@@ -1427,7 +1316,7 @@
                     broadcastPresence('PRESENCE_LEAVE');
                 }
                 teardownRoomNetwork();
-                stopKeepAlive();
+                stopBackgroundService();
                 appState.isConnected = false;
                 liveSyncedPeers = {};
                 appState.history = [];
@@ -1435,10 +1324,6 @@
                 localStorage.removeItem(SESSION_STORAGE_KEY);
                 sessionStorage.clear();
 
-                if ('caches' in window) {
-                    const cacheKeys = await caches.keys();
-                    await Promise.all(cacheKeys.map(key => caches.delete(key)));
-                }
             } catch (e) {
                 console.warn('잠금화면 60분 경과 캐시 정리 중 참고:', e);
             }
@@ -1448,7 +1333,6 @@
                 'gemini-picker-modal',
                 'edit-profile-modal',
                 'external-share-modal',
-                'pwa-guide-modal',
                 'leave-confirm-modal'
             ].forEach(id => {
                 const el = document.getElementById(id);
@@ -1481,90 +1365,158 @@
         }
 
         // ==========================================
-        // 백그라운드 접속 유지: 아주 작은 소리를 반복 재생하는 '재생 중' 상태로 두어
-        // 홈 화면으로 나가도 크롬이 이 앱을 멈추지 않게 함 (알림창에 '접속 유지 중' 표시)
+        // 앱(APK) 연동: 백그라운드 서비스 · 알림 · 파일 저장 · 공유 수신
+        //  - 웹(PC 브라우저)에서는 아래 기능이 모두 건너뛰어지고, 앱(APK)에서만 동작함
         // ==========================================
-        let keepAliveAudio = null;
-        let keepAliveUrl = null;
+        const CapRT = window.Capacitor;
+        const IS_NATIVE = !!(CapRT && typeof CapRT.isNativePlatform === 'function' && CapRT.isNativePlatform());
+        let nativeAppActive = true;
+        let bgServiceOn = false;
+        let notifPermAsked = false;
+        const BATTERY_ASKED_KEY = 'gyenam_battery_asked';
 
-        function buildQuietWavUrl() {
-            const rate = 8000, sec = 2, n = rate * sec;
-            const buf = new ArrayBuffer(44 + n * 2);
-            const v = new DataView(buf);
-            const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
-            w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
-            v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-            v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
-            w(36, 'data'); v.setUint32(40, n * 2, true);
-            for (let i = 0; i < n; i++) {
-                v.setInt16(44 + i * 2, Math.round(3 * Math.sin(2 * Math.PI * 40 * i / rate)), true); // 들리지 않는 크기
-            }
-            return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
-        }
-
-        function updateMediaSession() {
-            if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+        function getNativePlugin(name) {
+            if (!IS_NATIVE) return null;
             try {
-                navigator.mediaSession.metadata = new MediaMetadata({
-                    title: '접속 유지 중',
-                    artist: `#${appState.roomCode} · 파일 수신 대기`,
-                    album: '계남중 파일업다운',
-                    artwork: [{ src: 'icon-512.png', sizes: '512x512', type: 'image/png' }]
-                });
-                navigator.mediaSession.playbackState = 'playing';
-                ['play', 'pause', 'stop'].forEach(act => {
-                    try {
-                        navigator.mediaSession.setActionHandler(act, () => {
-                            if (!keepAliveAudio) return;
-                            if (act === 'play') keepAliveAudio.play().catch(() => {});
-                            else keepAliveAudio.pause();
-                        });
-                    } catch (e) {}
-                });
-            } catch (e) {}
-        }
-
-        function startKeepAlive() {
-            if (!appState.isConnected) return;
-            try {
-                if (!keepAliveAudio) {
-                    keepAliveUrl = buildQuietWavUrl();
-                    keepAliveAudio = new Audio(keepAliveUrl);
-                    keepAliveAudio.loop = true;
-                    keepAliveAudio.addEventListener('pause', () => {
-                        if (keepAliveAudio) appendDebugLog('백그라운드 유지 소리가 멈춤(다른 소리 재생 등)');
-                    });
-                }
-                if (!keepAliveAudio.paused) return;
-                keepAliveAudio.play().then(() => {
-                    appendDebugLog('백그라운드 유지 시작 (알림창에 "접속 유지 중" 표시)');
-                    updateMediaSession();
-                }).catch((e) => {
-                    appendDebugLog(`백그라운드 유지 시작 실패 (화면을 한 번 터치하면 다시 시도): ${e && e.name ? e.name : e}`);
-                });
+                return (CapRT.Plugins && CapRT.Plugins[name]) || CapRT.registerPlugin(name);
             } catch (e) {
-                appendDebugLog('백그라운드 유지 오류: ' + (e && e.message ? e.message : e));
+                return null;
             }
         }
 
-        function stopKeepAlive() {
+        function errText(e) {
+            return e && e.message ? e.message : String(e);
+        }
+
+        async function startBackgroundService() {
+            if (!IS_NATIVE || !appState.isConnected) return;
+            const bg = getNativePlugin('GyenamNative');
+            if (!bg) return;
             try {
-                const a = keepAliveAudio;
-                keepAliveAudio = null;
-                if (a) {
-                    a.pause();
-                    a.removeAttribute('src');
-                    a.load();
+                await bg.startService({ room: appState.roomCode, nickname: appState.nickname });
+                if (!bgServiceOn) {
+                    bgServiceOn = true;
+                    appendDebugLog('백그라운드 서비스 시작 (알림창에 "접속 유지 중" 표시)');
                 }
-                if (keepAliveUrl) {
-                    URL.revokeObjectURL(keepAliveUrl);
-                    keepAliveUrl = null;
+            } catch (e) {
+                appendDebugLog('백그라운드 서비스 시작 실패: ' + errText(e));
+            }
+        }
+
+        function stopBackgroundService() {
+            if (!IS_NATIVE) return;
+            const bg = getNativePlugin('GyenamNative');
+            bgServiceOn = false;
+            if (!bg) return;
+            bg.stopService().catch(() => {});
+        }
+
+        function openExternalUrl(url) {
+            const bg = getNativePlugin('GyenamNative');
+            if (bg) bg.openUrl({ url }).catch(() => window.open(url, '_blank'));
+            else window.open(url, '_blank');
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+                fr.onerror = () => reject(fr.error || new Error('파일 읽기 실패'));
+                fr.readAsDataURL(blob);
+            });
+        }
+
+        // target: 'downloads'(다운로드 폴더에 저장) | 'cache'(다른 앱 공유용 임시 파일)
+        async function saveBlobNative(blob, filename, target) {
+            const bg = getNativePlugin('GyenamNative');
+            if (!bg) throw new Error('앱 기능을 사용할 수 없습니다');
+            const begin = await bg.saveBegin({ name: filename, mime: blob.type || '', target });
+            try {
+                const CHUNK = 384 * 1024;
+                for (let off = 0; off < blob.size; off += CHUNK) {
+                    const b64 = await blobToBase64(blob.slice(off, off + CHUNK));
+                    await bg.saveChunk({ id: begin.id, data: b64 });
                 }
-                if ('mediaSession' in navigator) {
-                    navigator.mediaSession.metadata = null;
-                    navigator.mediaSession.playbackState = 'none';
+                return await bg.saveEnd({ id: begin.id });
+            } catch (e) {
+                bg.saveAbort({ id: begin.id }).catch(() => {});
+                throw e;
+            }
+        }
+
+        async function requestNotifyPermission() {
+            if (IS_NATIVE) {
+                if (notifPermAsked) return;
+                notifPermAsked = true;
+                try {
+                    const ln = getNativePlugin('LocalNotifications');
+                    const st = await ln.checkPermissions();
+                    if (st.display !== 'granted' && st.display !== 'denied') await ln.requestPermissions();
+                } catch (e) {}
+                return;
+            }
+            try {
+                if ('Notification' in window && Notification.permission === 'default') {
+                    await Notification.requestPermission();
                 }
             } catch (e) {}
+        }
+
+        // 백그라운드에서 연결이 끊기지 않도록 배터리 사용 제한 해제를 한 번만 안내
+        async function askBatteryExemptionOnce() {
+            if (!IS_NATIVE || localStorage.getItem(BATTERY_ASKED_KEY)) return;
+            try {
+                const bg = getNativePlugin('GyenamNative');
+                const r = await bg.isIgnoringBatteryOptimizations();
+                if (r && r.ignoring) return;
+                localStorage.setItem(BATTERY_ASKED_KEY, '1');
+                if (confirm('앱을 나가 있어도 파일을 받으려면 배터리 사용 제한을 풀어야 합니다.\n\n다음 화면에서 [허용]을 눌러주세요.')) {
+                    await bg.requestIgnoreBatteryOptimizations();
+                }
+            } catch (e) {}
+        }
+
+        const MODAL_IDS = ['gemini-picker-modal', 'edit-profile-modal', 'external-share-modal', 'leave-confirm-modal'];
+
+        async function initNativeBridge() {
+            if (!IS_NATIVE) return;
+            const app = getNativePlugin('App');
+            const ln = getNativePlugin('LocalNotifications');
+            const bg = getNativePlugin('GyenamNative');
+
+            if (app) {
+                app.addListener('appStateChange', (st) => {
+                    nativeAppActive = !!st.isActive;
+                    if (st.isActive) onAppVisible(); else onAppHidden();
+                });
+                // 뒤로가기: 접속을 끊지 않고 앱만 뒤로 보냄(홈 화면으로). 열린 창이 있으면 그것만 닫음
+                app.addListener('backButton', () => {
+                    let closedAny = false;
+                    MODAL_IDS.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el && !el.classList.contains('hidden')) { el.classList.add('hidden'); closedAny = true; }
+                    });
+                    if (closedAny) return;
+                    if (appState.isConnected && bg) {
+                        broadcastPresence('PRESENCE_PING');
+                        bg.moveToBack().catch(() => {});
+                    } else {
+                        app.exitApp();
+                    }
+                });
+            }
+            if (ln) {
+                try {
+                    await ln.createChannel({ id: 'gyenam_files', name: '파일 수신', description: '조원이 파일을 보냈을 때 알림', importance: 4, visibility: 1, vibration: true });
+                    await ln.registerActionTypes({ types: [{ id: 'FILE_RECEIVED', actions: [{ id: 'download', title: '다운로드' }] }] });
+                } catch (e) {
+                    appendDebugLog('알림 설정 오류: ' + errText(e));
+                }
+                ln.addListener('localNotificationActionPerformed', handleNotificationAction);
+            }
+            if (bg) {
+                bg.addListener('sharedAvailable', () => { pullNativeShared(); });
+            }
         }
 
         function markActivity() {
@@ -1577,11 +1529,11 @@
                 broadcastPresence('PRESENCE_LEAVE');
             } catch (e) {}
             teardownRoomNetwork();
-            stopKeepAlive();
+            stopBackgroundService();
             appState.isConnected = false;
             liveSyncedPeers = {};
             localStorage.removeItem(SESSION_STORAGE_KEY);
-            ['gemini-picker-modal', 'edit-profile-modal', 'external-share-modal', 'pwa-guide-modal', 'leave-confirm-modal'].forEach(id => {
+            ['gemini-picker-modal', 'edit-profile-modal', 'external-share-modal', 'leave-confirm-modal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
             });
@@ -1605,41 +1557,51 @@
             });
             clearInterval(idleCheckTimer);
             idleCheckTimer = setInterval(checkIdleTimeout, 30000);
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) checkIdleTimeout();
-            });
+            if (!IS_NATIVE) {
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) checkIdleTimeout();
+                });
+            }
+        }
+
+        function onAppHidden() {
+            hiddenAt = Date.now();
+            if (!localStorage.getItem(LOCK_TIMESTAMP_KEY)) {
+                localStorage.setItem(LOCK_TIMESTAMP_KEY, String(Date.now()));
+            }
+            clearTimeout(screenLockTimer);
+            screenLockTimer = setTimeout(() => {
+                purgeCacheAndAutoTerminateApp();
+            }, SCREEN_LOCK_TIMEOUT_MS);
+        }
+
+        function onAppVisible() {
+            checkScreenLockTimeoutOnResume();
+            const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
+            hiddenAt = 0;
+            if (appState.isConnected) startBackgroundService();
+            if (appState.isConnected && !checkIdleTimeout()) {
+                appendDebugLog(`화면 복귀(${Math.round(awayMs / 1000)}초 만에) → 연결 상태 확인`);
+                // 앱(APK)은 백그라운드 서비스가 연결을 유지하므로 생존 확인만 하고, 웹은 오래 비웠으면 새로 구성
+                resumeNetworkAfterBackground(IS_NATIVE ? 0 : awayMs);
+            }
+            if (IS_NATIVE) pullNativeShared();
         }
 
         function setupScreenLockAutoTerminate() {
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden) {
-                    hiddenAt = Date.now();
-                    if (!localStorage.getItem(LOCK_TIMESTAMP_KEY)) {
-                        localStorage.setItem(LOCK_TIMESTAMP_KEY, String(Date.now()));
-                    }
-                    clearTimeout(screenLockTimer);
-                    screenLockTimer = setTimeout(() => {
-                        purgeCacheAndAutoTerminateApp();
-                    }, SCREEN_LOCK_TIMEOUT_MS);
-                } else {
-                    checkScreenLockTimeoutOnResume();
-                    const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
-                    hiddenAt = 0;
-                    if (appState.isConnected) startKeepAlive();
-                    if (appState.isConnected && !checkIdleTimeout()) {
-                        appendDebugLog(`화면 복귀(${Math.round(awayMs / 1000)}초 만에) → 연결 상태 확인`);
-                        resumeNetworkAfterBackground(awayMs);
-                    }
-                }
-            });
-
+            // 앱(APK)에서는 appStateChange(initNativeBridge)가 onAppHidden/onAppVisible을 호출함
+            if (!IS_NATIVE) {
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) onAppHidden(); else onAppVisible();
+                });
+            }
             window.addEventListener('pageshow', () => {
                 checkScreenLockTimeoutOnResume();
             });
         }
 
         // ==========================================
-        // 3. 앱 상태 및 세션 영속성 (localStorage + popstate 뒤로가기 방어)
+        // 3. 앱 상태 및 세션 영속성 (localStorage)
         // ==========================================
         const defaultGeminiFiles = []; // 가짜 샘플 파일 제거: 내 기기에서 직접 고른 파일만 표시
 
@@ -1704,85 +1666,9 @@
             return false;
         }
 
-        let navGuardArmed = false;
-        function pushNavGuardEntry() {
-            try {
-                window.history.pushState({ gyenamGuard: 'active' }, '', window.location.href);
-                navGuardArmed = true;
-            } catch (e) {}
-        }
-
-        function setupBrowserNavigationGuard() {
-            if (!window.history.state || !window.history.state.gyenamGuard) {
-                window.history.replaceState({ gyenamGuard: 'base' }, '', window.location.href);
-                pushNavGuardEntry();
-            } else {
-                navGuardArmed = true;
-            }
-
-            // 크롬은 터치 없이 쌓은 기록은 뒤로가기 때 건너뛰므로, 실제 터치/클릭 때 방어 기록을 다시 채움
-            ['click', 'touchend', 'keydown'].forEach(evName => {
-                window.addEventListener(evName, () => {
-                    if (!navGuardArmed && appState.isConnected) pushNavGuardEntry();
-                }, { capture: true, passive: true });
-            });
-
-            window.addEventListener('popstate', () => {
-                navGuardArmed = false;
-                const modals = [
-                    'gemini-picker-modal',
-                    'edit-profile-modal',
-                    'external-share-modal',
-                    'pwa-guide-modal',
-                    'leave-confirm-modal'
-                ];
-                let closedAnyModal = false;
-                modals.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el && !el.classList.contains('hidden')) {
-                        el.classList.add('hidden');
-                        closedAnyModal = true;
-                    }
-                });
-
-                if (appState.isConnected) {
-                    pushNavGuardEntry();
-                    navGuardArmed = false; // 다음 터치 때 한 번 더 채워 넣음
-                    broadcastPresence('PRESENCE_PING');
-                    if (!closedAnyModal) {
-                        showToast(`#${appState.roomCode} 방 접속이 유지되고 있습니다. 나가려면 우측 상단 [방 나가기]를 눌러주세요.`);
-                    }
-                }
-            });
-        }
-
         // ==========================================
-        // 4. Web Share Target 수신 처리 및 외부 공유 시뮬레이션
+        // 4. 외부에서 공유받은 내용을 보낼 파일로 담기
         // ==========================================
-        function handleIncomingWebShareTarget() {
-            const params = new URLSearchParams(window.location.search);
-            const sharedTitle = params.get('title');
-            const sharedText = params.get('text');
-            const sharedUrl = params.get('url');
-
-            if (sharedTitle || sharedText || sharedUrl) {
-                const combinedContent = [sharedTitle, sharedText, sharedUrl].filter(Boolean).join('\n');
-                const safeFilename = (sharedTitle ? sharedTitle.replace(/[^a-zA-Z0-9가-힣._-]/g, '_') : '외부공유_파일') + '.txt';
-                window.history.replaceState({ gyenamGuard: 'active' }, '', window.location.pathname);
-
-                receiveExternalSharedPayload(safeFilename, combinedContent, 'txt');
-            }
-        }
-
-        function simulateExternalShareIncoming() {
-            const sampleSharedItems = [
-                { filename: '제미나이_생성코드_공유.html', ext: 'html', content: '<!DOCTYPE html><html><body><h2>외부 앱 공유 시트로 전달된 HTML 파일</h2></body></html>' },
-                { filename: '조별과제_참고링크.txt', ext: 'txt', content: 'https://gyenam.ms.kr - 계남중학교 조별 프로젝트 참고 자료' }
-            ];
-            const pick = sampleSharedItems[Math.floor(Math.random() * sampleSharedItems.length)];
-            receiveExternalSharedPayload(pick.filename, pick.content, pick.ext);
-        }
-
         function receiveExternalSharedPayload(filename, content, ext) {
             const sizeStr = formatFileSize(new Blob([content]).size);
             pendingExternalShareItem = {
@@ -1866,7 +1752,6 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
 
-            pushNavGuardEntry();
             markActivity();
             connectPeerRoomNetwork(appState.roomCode);
             broadcastPresence('PRESENCE_PING');
@@ -1875,9 +1760,9 @@
             renderHistory();
             lucide.createIcons();
 
-            startKeepAlive();
+            startBackgroundService();
             if (!isAutoRestore) {
-                requestNotifyPermission();
+                requestNotifyPermission().then(askBatteryExemptionOnce);
                 showToast(`#${appState.roomCode} 방에 접속했습니다! 뒤로가기를 눌러도 접속이 유지됩니다.`);
             }
             if (pendingSharedPayload) {
@@ -1931,7 +1816,7 @@
             appState.roomCode = newCode;
 
             syncRoomUI();
-            updateMediaSession();
+            startBackgroundService(); // 알림창의 방 코드 표시 갱신
             if (codeChanged) {
                 connectPeerRoomNetwork(appState.roomCode);
             }
@@ -1955,7 +1840,7 @@
             closeLeaveConfirmModal();
             broadcastPresence('PRESENCE_LEAVE');
             teardownRoomNetwork();
-            stopKeepAlive();
+            stopBackgroundService();
             appState.isConnected = false;
             liveSyncedPeers = {};
             localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -2520,6 +2405,11 @@
 
             try {
                 const fileBlob = item.fileObj || new Blob([item.content || item.filename], { type: 'text/plain' });
+                if (IS_NATIVE) {
+                    const saved = await saveBlobNative(fileBlob, item.filename, 'cache');
+                    await getNativePlugin('Share').share({ title: item.filename, dialogTitle: '다른 앱으로 공유', files: [saved.uri] });
+                    return;
+                }
                 const shareFile = new File([fileBlob], item.filename, { type: fileBlob.type || 'text/plain' });
 
                 if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
@@ -2539,13 +2429,13 @@
                     showToast('현재 브라우저에서는 파일 직접 공유 대신 기기 저장을 실행합니다.');
                 }
             } catch (err) {
-                if (err.name !== 'AbortError') {
+                if (err.name !== 'AbortError' && !/cancel/i.test(errText(err))) {
                     showToast('공유 창을 여는 중 문제가 발생했습니다.', 'warning');
                 }
             }
         }
 
-        function downloadHistoryFile(itemId) {
+        async function downloadHistoryFile(itemId) {
             const item = appState.history.find(i => i.id === itemId);
             if (!item) return;
 
@@ -2557,6 +2447,11 @@
                     const textData = item.content || `계남중 파일업다운 수신 파일: ${item.filename}`;
                     blob = new Blob([textData], { type: 'text/plain;charset=utf-8' });
                 }
+                if (IS_NATIVE) {
+                    const saved = await saveBlobNative(blob, item.filename, 'downloads');
+                    showToast(`'${saved.name || item.filename}' 저장 완료! 내 파일 → 다운로드 → 계남중파일업다운 폴더에서 확인하세요.`);
+                    return;
+                }
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -2567,6 +2462,7 @@
                 URL.revokeObjectURL(url);
                 showToast(`'${item.filename}' 다운로드 완료! 브라우저의 '다운로드' 폴더에서 확인하세요. (PC 크롬: Ctrl+J)`);
             } catch (e) {
+                appendDebugLog('파일 저장 오류: ' + errText(e));
                 showToast('파일 다운로드 중 오류가 발생했습니다.', 'warning');
             }
         }
@@ -2576,14 +2472,6 @@
         // ==========================================
         let incomingPopupItemId = null;
         let incomingPopupTimer = null;
-
-        function requestNotifyPermission() {
-            try {
-                if ('Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission().catch(() => {});
-                }
-            } catch (e) {}
-        }
 
         function showIncomingFilePopup(item, autoHide = true) {
             if (!item) return;
@@ -2609,36 +2497,40 @@
         }
 
         async function showSystemNotification(item) {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
             const title = `📩 ${item.sender}님이 파일을 보냈습니다`;
             const body = `${item.filename} (${item.size})`;
-            try {
-                const reg = swRegistration || await Promise.race([
-                    navigator.serviceWorker.ready,
-                    new Promise((_, rej) => setTimeout(() => rej(new Error('sw timeout')), 1500))
-                ]);
-                await reg.showNotification(title, {
-                    body,
-                    tag: 'gyenam-' + item.id,
-                    renotify: true,
-                    requireInteraction: true,
-                    vibrate: [200, 100, 200],
-                    icon: 'icon-192.png',
-                    badge: 'icon-192.png',
-                    data: { itemId: item.id },
-                    actions: [{ action: 'download', title: '다운로드' }]
-                });
-            } catch (e) {
+            if (IS_NATIVE) {
                 try {
-                    const n = new Notification(title, { body, tag: 'gyenam-' + item.id });
-                    n.onclick = () => { window.focus(); n.close(); showIncomingFilePopup(item, false); };
-                } catch (e2) {}
+                    const ln = getNativePlugin('LocalNotifications');
+                    const st = await ln.checkPermissions();
+                    if (st.display !== 'granted') {
+                        appendDebugLog('알림 권한이 없어 알림을 띄우지 못했습니다 (설정 → 앱 → 알림 허용)');
+                        return;
+                    }
+                    await ln.schedule({ notifications: [{
+                        id: Date.now() % 2000000000,
+                        title,
+                        body,
+                        channelId: 'gyenam_files',
+                        smallIcon: 'ic_stat_gyenam',
+                        actionTypeId: 'FILE_RECEIVED',
+                        extra: { itemId: item.id }
+                    }] });
+                } catch (e) {
+                    appendDebugLog('알림 표시 실패: ' + errText(e));
+                }
+                return;
             }
+            try {
+                if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                const n = new Notification(title, { body, tag: 'gyenam-' + item.id });
+                n.onclick = () => { window.focus(); n.close(); showIncomingFilePopup(item, false); };
+            } catch (e) {}
         }
 
         function notifyIncomingFile(item) {
             if (!item) return;
-            const away = document.hidden || !document.hasFocus();
+            const away = IS_NATIVE ? !nativeAppActive : (document.hidden || !document.hasFocus());
             if (away) {
                 showSystemNotification(item);
                 showIncomingFilePopup(item, false);
@@ -2647,44 +2539,44 @@
             }
         }
 
-        function handleSwMessage(event) {
-            const data = event.data || {};
-            if (data.type !== 'NOTIF_CLICK') return;
-            const item = appState.history.find(i => i.id === data.itemId);
+        // 알림(또는 [다운로드] 버튼)을 눌렀을 때
+        function handleNotificationAction(ev) {
+            const extra = (ev && ev.notification && ev.notification.extra) || {};
+            const item = appState.history.find(i => i.id === extra.itemId);
             if (!item) {
                 showToast('받은 파일을 찾지 못했습니다. 받은 파일 내역을 확인해주세요.', 'warning');
                 return;
             }
             showIncomingFilePopup(item, false);
-            if (data.action === 'download') downloadHistoryFile(item.id);
+            if (ev.actionId === 'download') downloadHistoryFile(item.id);
         }
 
         // ==========================================
-        // 7-2. 다른 앱 [공유하기] → 이 앱으로 파일/링크 수신 (sw.js가 보관한 내용 읽기)
+        // 7-2. 다른 앱 [공유하기] → 이 앱으로 파일/링크 수신 (앱(APK)이 받아 둔 내용을 읽어옴)
         // ==========================================
         let pendingSharedPayload = null;
+        let pullingShared = false;
 
-        async function loadSharedInbox() {
-            if (!('caches' in window)) return null;
+        async function pullNativeShared() {
+            if (!IS_NATIVE || pullingShared) return;
+            const bg = getNativePlugin('GyenamNative');
+            if (!bg) return;
+            pullingShared = true;
             try {
-                const cache = await caches.open('gyenam-share-inbox-v1');
-                const metaRes = await cache.match(new URL('./__shared__/meta.json', window.location.href).href);
-                if (!metaRes) return null;
-                const meta = await metaRes.json();
+                const r = await bg.consumeShared();
+                if (!r || (!(r.files && r.files.length) && !r.title && !r.text && !r.url)) return;
                 const files = [];
-                for (const key of (meta.files || [])) {
-                    const res = await cache.match(key);
-                    if (!res) continue;
+                for (const f of (r.files || [])) {
+                    const res = await fetch(CapRT.convertFileSrc('file://' + f.path));
                     const blob = await res.blob();
-                    const name = decodeURIComponent(res.headers.get('X-Filename') || 'shared_file');
-                    const lastModified = Number(res.headers.get('X-Lastmod')) || Date.now();
-                    files.push(new File([blob], name, { type: blob.type, lastModified }));
+                    files.push(new File([blob], f.name || 'shared_file', { type: f.mime || blob.type, lastModified: Number(f.lastModified) || Date.now() }));
                 }
-                for (const k of await cache.keys()) await cache.delete(k);
-                return { title: meta.title || '', text: meta.text || '', url: meta.url || '', files };
+                pendingSharedPayload = { title: r.title || '', text: r.text || '', url: r.url || '', files };
+                deliverPendingShared();
             } catch (e) {
-                appendDebugLog('공유 수신 읽기 실패: ' + (e && e.message ? e.message : e));
-                return null;
+                appendDebugLog('공유 수신 읽기 실패: ' + errText(e));
+            } finally {
+                pullingShared = false;
             }
         }
 
@@ -2706,16 +2598,6 @@
                 const safeName = (p.title ? p.title.replace(/[^a-zA-Z0-9가-힣._-]/g, '_').slice(0, 40) : '외부공유_링크') + '.txt';
                 receiveExternalSharedPayload(safeName, combined, 'txt');
             }
-        }
-
-        async function handleIncomingSharedInbox() {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('shared') !== '1') return;
-            window.history.replaceState({ gyenamGuard: 'active' }, '', window.location.pathname);
-            const payload = await loadSharedInbox();
-            if (!payload) return;
-            pendingSharedPayload = payload;
-            deliverPendingShared();
         }
 
         // ==========================================
@@ -2774,11 +2656,11 @@
 
         // 앱 초기화 실행
         window.addEventListener('DOMContentLoaded', () => {
-            initPwaInfrastructure();
+            initAppInfo();
             initPageLeaveNotifier();
-            setupBrowserNavigationGuard();
             setupScreenLockAutoTerminate();
             setupIdleAutoDisconnect();
+            initNativeBridge();
 
             const expiredByLock = checkScreenLockTimeoutOnResume();
             if (!expiredByLock) {
@@ -2787,12 +2669,14 @@
                     joinRoom(true);
                 }
             }
-            handleIncomingWebShareTarget();
-            handleIncomingSharedInbox();
+            if (IS_NATIVE) {
+                pullNativeShared();
+                setTimeout(fetchUpdateState, 3000);
+            }
             window.addEventListener('click', () => {
                 if (appState.isConnected) {
                     requestNotifyPermission();
-                    startKeepAlive();
+                    if (!bgServiceOn) startBackgroundService();
                 }
             }, { capture: true, passive: true });
             lucide.createIcons();
