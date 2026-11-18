@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.13)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.13)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.13';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.14)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.14)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.14';
 -->
 <html lang="ko">
 <head>
@@ -317,20 +317,21 @@
                             <button onclick="runConnectionDiagnostics()" class="text-sky-400 hover:underline">연결 점검</button>
                             <button onclick="copyDebugLogs()" class="text-emerald-300 hover:underline">복사</button>
                             <button onclick="clearDebugLogs()" class="text-amber-400 hover:underline">지우기</button>
-                            <button onclick="document.getElementById('debug-log-panel').classList.add('hidden')" class="text-rose-400 hover:underline">닫기</button>
+                            <button onclick="closeDebugPanel()" class="text-rose-400 hover:underline">닫기</button>
                         </div>
                     </div>
                     <div id="debug-log-content" class="max-h-36 overflow-y-auto space-y-1 leading-relaxed"></div>
+                    <button type="button" onclick="requestGlobalReset()" id="btn-global-reset" class="hidden w-full mt-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold font-sans transition active:scale-95">전체 초기화 (모든 방 · 모든 학생 첫 화면으로)</button>
                 </section>
             </main>
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.13 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.14 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex items-center justify-between text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.13</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.14</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -623,7 +624,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.13';
+        const APP_VERSION = 'v3.14';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -660,13 +661,89 @@
             headerTapCount++;
             clearTimeout(headerTapResetTimer);
             headerTapResetTimer = setTimeout(() => { headerTapCount = 0; }, 1800);
-            if (headerTapCount >= 7) {
+            const panel = document.getElementById('debug-log-panel');
+            if (headerTapCount === 7 && panel) {
+                panel.classList.toggle('hidden');
+                appendDebugLog(`진단 패널 열림 | 기기ID: ${deviceId} | 방코드: #${appState.roomCode}`);
+            } else if (headerTapCount >= 12) {
                 headerTapCount = 0;
-                const panel = document.getElementById('debug-log-panel');
-                if (panel) {
-                    panel.classList.toggle('hidden');
-                    appendDebugLog(`진단 패널 열림 | 기기ID: ${deviceId} | 방코드: #${appState.roomCode}`);
-                }
+                if (panel) panel.classList.remove('hidden');
+                const btn = document.getElementById('btn-global-reset');
+                if (btn) btn.classList.remove('hidden');
+                appendDebugLog('전체 초기화 버튼 표시됨');
+            }
+        }
+
+        function closeDebugPanel() {
+            document.getElementById('debug-log-panel').classList.add('hidden');
+            const btn = document.getElementById('btn-global-reset');
+            if (btn) btn.classList.add('hidden');
+        }
+
+        // ==========================================
+        // 전체 초기화: 교사가 요청하면 모든 방의 모든 기기가 첫 화면(닉네임·코드 입력)으로 돌아감
+        // 방법: 앱스 스크립트에 '초기화 번호'를 올려 두고, 각 기기가 30초마다 확인 (PeerJS 서버가 불안정해도 동작)
+        // ==========================================
+        const RESET_EPOCH_KEY = 'gyenam_reset_epoch';
+        const RESET_POLL_MS = 30000;
+
+        async function fetchResetEpoch() {
+            if (!LOG_ENDPOINT) return null;
+            try {
+                const r = await fetch(LOG_ENDPOINT + (LOG_ENDPOINT.includes('?') ? '&' : '?') + 'a=epoch&_=' + Date.now(), { cache: 'no-store' });
+                const j = JSON.parse(await r.text());
+                return (j && j.ok && Number(j.epoch) >= 0) ? Number(j.epoch) : null;
+            } catch (e) { return null; }
+        }
+
+        async function pollResetEpoch() {
+            const e = await fetchResetEpoch();
+            if (e === null) return;
+            const saved = Number(localStorage.getItem(RESET_EPOCH_KEY) || '');
+            localStorage.setItem(RESET_EPOCH_KEY, String(e));
+            // 처음 확인한 값은 기준으로만 저장 (새로 설치한 기기가 곧바로 초기화되지 않도록)
+            if (localStorage.getItem(RESET_EPOCH_KEY + '_init') && e > saved) {
+                performGlobalReset('선생님이 전체 초기화를 했습니다. 닉네임과 코드를 다시 입력해주세요.');
+            }
+            localStorage.setItem(RESET_EPOCH_KEY + '_init', '1');
+        }
+
+        function performGlobalReset(message) {
+            try { broadcastPresence('PRESENCE_LEAVE'); } catch (e) {}
+            teardownRoomNetwork();
+            stopBackgroundService();
+            appState.isConnected = false;
+            liveSyncedPeers = {};
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+            ['gemini-picker-modal', 'edit-profile-modal', 'teacher-modal', 'share-target-modal', 'external-share-modal', 'leave-confirm-modal']
+                .forEach(id => { const m = document.getElementById(id); if (m) m.classList.add('hidden'); });
+            closeDebugPanel();
+            const nick = document.getElementById('input-nickname'); if (nick) nick.value = '';
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            lucide.createIcons();
+            showToast(message);
+        }
+
+        async function requestGlobalReset() {
+            if (!LOG_ENDPOINT) { showToast('기록 서버 주소가 없어 전체 초기화를 할 수 없습니다.'); return; }
+            if (!confirm('모든 방의 모든 학생(나 포함)을 첫 화면으로 되돌립니다.\n계속할까요?')) return;
+            appendDebugLog('전체 초기화 요청 전송...');
+            try {
+                const r = await fetch(LOG_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ token: LOG_TOKEN, action: 'resetAll' })
+                });
+                const j = JSON.parse(await r.text());
+                if (!j || !j.ok) throw new Error((j && j.error) || '서버 응답 오류');
+                localStorage.setItem(RESET_EPOCH_KEY, String(j.epoch));
+                localStorage.setItem(RESET_EPOCH_KEY + '_init', '1');
+                appendDebugLog(`전체 초기화 등록 완료 (번호 ${j.epoch}) · 학생 기기는 최대 30초 안에 첫 화면으로 돌아갑니다`);
+                performGlobalReset('전체 초기화 완료! 학생 기기는 최대 30초 안에 첫 화면으로 돌아갑니다.');
+            } catch (e) {
+                appendDebugLog('전체 초기화 실패: ' + e.message);
+                showToast('전체 초기화 실패: 기록 서버(앱스 스크립트)가 최신 버전인지 확인해주세요.');
             }
         }
 
@@ -3468,6 +3545,8 @@
                 }
             }
             idbPruneOrphans();
+            setTimeout(pollResetEpoch, 1500 + Math.random() * 3000);
+            setInterval(pollResetEpoch, RESET_POLL_MS);
             if (IS_NATIVE) {
                 pullNativeShared();
                 setTimeout(fetchUpdateState, 3000);

@@ -25,6 +25,11 @@ function doPost(e) {
     if (body.token !== TOKEN) return json_({ ok: false, error: '허용되지 않은 요청입니다' });
     var ss = SpreadsheetApp.getActive();
     if (ss.getSpreadsheetTimeZone() !== TZ) ss.setSpreadsheetTimeZone(TZ);
+    if (body.action === 'resetAll') {
+      var ep = Date.now();
+      PropertiesService.getScriptProperties().setProperty('RESET_EPOCH', String(ep));
+      return json_({ ok: true, epoch: ep });
+    }
     if (body.action === 'teacherUpload') return teacherUpload_(ss, body);
     var log = sheet_(ss, '로그', LOG_HEAD);
     var dev = sheet_(ss, '기기목록', DEV_HEAD);
@@ -38,7 +43,12 @@ function doPost(e) {
   }
 }
 
-function doGet() { return out_('계남중 파일업다운 기록 수신 준비됨 (v3.8 · 선생님께 전송 지원)'); }
+function doGet(e) {
+  if (e && e.parameter && e.parameter.a === 'epoch') {
+    return json_({ ok: true, epoch: Number(PropertiesService.getScriptProperties().getProperty('RESET_EPOCH') || 0) });
+  }
+  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.14 · 선생님께 전송 · 전체 초기화 지원)');
+}
 
 function out_(t) { return ContentService.createTextOutput(t); }
 function json_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
