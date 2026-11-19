@@ -30,6 +30,7 @@ function doPost(e) {
       PropertiesService.getScriptProperties().setProperty('RESET_EPOCH', String(ep));
       return json_({ ok: true, epoch: ep });
     }
+    if (body.action === 'diag') return diagRow_(ss, body);
     if (body.action === 'teacherUpload') return teacherUpload_(ss, body);
     var log = sheet_(ss, '로그', LOG_HEAD);
     var dev = sheet_(ss, '기기목록', DEV_HEAD);
@@ -47,7 +48,25 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.a === 'epoch') {
     return json_({ ok: true, epoch: Number(PropertiesService.getScriptProperties().getProperty('RESET_EPOCH') || 0) });
   }
-  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.14 · 선생님께 전송 · 전체 초기화 지원)');
+  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.17 · 선생님께 전송 · 전체 초기화 · 경로 진단 기록 지원)');
+}
+
+var DIAG_HEAD = ['서버시간','기기측 시간','기기ID','닉네임','방코드','앱버전','사유','판정','공인IP','내부IP','회선','구글(ms)','기록서버(ms)','PeerJS HTTPS(ms)','웹소켓 열림(ms)','웹소켓 응답(ms)','웹소켓 성공','STUN(ms)','직전 로그'];
+
+// 학생 기기의 '경로 진단' 결과를 '진단' 탭에 한 줄씩 기록 (28대를 시간순으로 비교하는 용도)
+function diagRow_(ss, b) {
+  var r = b.rec || {}, x = r.res || {};
+  var sh = sheet_(ss, '진단', DIAG_HEAD);
+  var row = [
+    Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss'),
+    Utilities.formatDate(new Date(r.t || Date.now()), TZ, 'HH:mm:ss'),
+    String(b.device || ''), String(b.nick || ''), String(b.room || ''), String(b.ver || ''),
+    String(r.reason || ''), String(r.verdict || ''), String(x.pubIp || ''), String(x.lanIp || ''), String(x.net || ''),
+    x.google, x.script, x.peerHttp, x.wsOpen, x.wsMsg, x.wsOk ? 'O' : 'X', x.stun,
+    String((r.lines || []).join('\n')).slice(0, 45000)
+  ];
+  sh.appendRow(row);
+  return json_({ ok: true });
 }
 
 function out_(t) { return ContentService.createTextOutput(t); }

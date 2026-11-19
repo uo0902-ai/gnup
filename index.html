@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.16)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.16)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.16';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.17)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.17)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.17';
 -->
 <html lang="ko">
 <head>
@@ -314,7 +314,7 @@
                     <div class="flex items-center justify-between text-slate-300 border-b border-slate-800 pb-1">
                         <span class="font-bold">실시간 연결 진단 로그</span>
                         <div class="flex gap-2">
-                            <button onclick="runConnectionDiagnostics()" class="text-sky-400 hover:underline">연결 점검</button>
+                            <button onclick="runConnectionDiagnostics()" class="text-sky-400 hover:underline">경로 진단</button>
                             <button onclick="copyDebugLogs()" class="text-emerald-300 hover:underline">복사</button>
                             <button onclick="clearDebugLogs()" class="text-amber-400 hover:underline">지우기</button>
                             <button onclick="closeDebugPanel()" class="text-rose-400 hover:underline">닫기</button>
@@ -327,11 +327,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.16 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.17 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.16</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.17</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -628,7 +628,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.16';
+        const APP_VERSION = 'v3.17';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -646,12 +646,33 @@
         let headerTapCount = 0;
         let headerTapResetTimer = null;
 
+        // 진단 로그는 앱을 껐다 켜도 남도록 기기에 저장합니다 (최근 400줄)
+        const DIAG_LOG_KEY = 'gyenam_diag_log';
+        const DIAG_LOG_MAX = 400;
+        let diagLines = [];
+        let diagSaveTimer = null;
+        try { diagLines = JSON.parse(localStorage.getItem(DIAG_LOG_KEY) || '[]'); if (!Array.isArray(diagLines)) diagLines = []; } catch (e) { diagLines = []; }
+        const prevSessionLines = diagLines.slice();
+
+        function persistDiagLine(line) {
+            diagLines.push(line);
+            if (diagLines.length > DIAG_LOG_MAX) diagLines.splice(0, diagLines.length - DIAG_LOG_MAX);
+            clearTimeout(diagSaveTimer);
+            diagSaveTimer = setTimeout(() => { try { localStorage.setItem(DIAG_LOG_KEY, JSON.stringify(diagLines)); } catch (e) {} }, 800);
+        }
+
+        function logStamp() {
+            const d = new Date();
+            return d.toTimeString().split(' ')[0] + '.' + String(d.getMilliseconds()).padStart(3, '0');
+        }
+
         function appendDebugLog(msg) {
+            const line = `[${logStamp()}] ${msg}`;
+            persistDiagLine(line);
             const logBox = document.getElementById('debug-log-content');
             if (!logBox) return;
-            const timeStr = new Date().toTimeString().split(' ')[0];
             const row = document.createElement('div');
-            row.textContent = `[${timeStr}] ${msg}`;
+            row.textContent = line;
             logBox.appendChild(row);
             logBox.scrollTop = logBox.scrollHeight;
         }
@@ -659,6 +680,17 @@
         function clearDebugLogs() {
             const logBox = document.getElementById('debug-log-content');
             if (logBox) logBox.innerHTML = '';
+            diagLines = [];
+            try { localStorage.removeItem(DIAG_LOG_KEY); } catch (e) {}
+        }
+
+        // 앱을 다시 켰을 때 이전 기록을 패널에 먼저 보여줌
+        function restoreDiagLogPanel() {
+            const logBox = document.getElementById('debug-log-content');
+            if (!logBox) return;
+            const first = logBox.firstChild;
+            prevSessionLines.forEach(l => { const r = document.createElement('div'); r.textContent = l; logBox.insertBefore(r, first); });
+            if (prevSessionLines.length) appendDebugLog(`──── 앱 시작 ${APP_VERSION} (위쪽은 이전 실행 기록) ────`);
         }
 
         function handleHeaderTitleTap() {
@@ -742,6 +774,7 @@
         async function pollResetEpoch() {
             const e = await fetchResetEpoch();
             if (e === null) return;
+            flushDiagUploads();
             const saved = Number(localStorage.getItem(RESET_EPOCH_KEY) || '');
             localStorage.setItem(RESET_EPOCH_KEY, String(e));
             // 처음 확인한 값은 기준으로만 저장 (새로 설치한 기기가 곧바로 초기화되지 않도록)
@@ -1041,10 +1074,175 @@
             }
         }
 
+        // ==========================================
+        // 경로 진단: 단계별로 어디서 막히는지 시간(ms)과 함께 기록하고, 구글 시트('진단' 탭)로 보냅니다
+        //  ① 일반 인터넷(구글)  ② 기록서버(구글 스크립트)  ③ PeerJS 서버 HTTPS  ④ PeerJS 웹소켓  ⑤ STUN(UDP·공인IP)
+        //  ※ 앱(웹뷰)은 traceroute(중간 경유지 추적)를 할 수 없어서, 단계별 성공/실패/소요시간으로 막힌 위치를 좁힙니다.
+        // ==========================================
+        const DIAG_PEND_KEY = 'gyenam_diag_pending';
+        let diagRunning = false;
+        let lastAutoDiagAt = 0;
+        let baselineDiagDone = false;
+
+        function diagHost() { try { return new URL(SERVER_CHECK_URL).host; } catch (e) { return '0.peerjs.com'; } }
+
+        async function diagProbe(url) {
+            const t0 = Date.now();
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 8000);
+            try {
+                await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+                return { ok: true, ms: Date.now() - t0 };
+            } catch (e) {
+                return { ok: false, ms: Date.now() - t0, err: ctrl.signal.aborted ? '8초 무응답(패킷 버려짐 의심)' : '즉시 실패(연결 거부·차단·DNS 실패 중 하나)' };
+            } finally { clearTimeout(timer); }
+        }
+
+        function diagWebSocket() {
+            return new Promise((resolve) => {
+                const t0 = Date.now();
+                const r = { ok: false, openMs: null, msgMs: null, err: '', code: null };
+                let ws, done = false;
+                const finish = () => { if (done) return; done = true; clearTimeout(timer); try { ws && ws.close(1000); } catch (e) {} resolve(r); };
+                const timer = setTimeout(() => { r.err = r.openMs === null ? '8초 안에 연결 안 열림(웹소켓 핸드셰이크 무응답)' : '연결은 열렸으나 서버 응답 없음'; finish(); }, 8000);
+                try {
+                    const rnd = Math.random().toString(36).slice(2, 10);
+                    ws = new WebSocket(`wss://${diagHost()}/peerjs?key=peerjs&id=gnupdiag${rnd}&token=${rnd}&version=1.5.4`);
+                } catch (e) { r.err = '웹소켓 생성 실패: ' + e; return finish(); }
+                ws.onopen = () => { r.openMs = Date.now() - t0; };
+                ws.onmessage = (ev) => { r.msgMs = Date.now() - t0; try { r.ok = JSON.parse(ev.data).type === 'OPEN'; } catch (e) { r.ok = true; } finish(); };
+                ws.onerror = () => { if (!r.err) r.err = r.openMs === null ? '웹소켓 연결 실패(열리기 전 오류)' : '웹소켓 오류'; };
+                ws.onclose = (ev) => { r.code = ev.code; if (!r.ok && !r.err) r.err = `웹소켓 닫힘 code=${ev.code}`; finish(); };
+            });
+        }
+
+        function diagStun() {
+            return new Promise((resolve) => {
+                const t0 = Date.now();
+                const r = { ok: false, ms: null, host: [], srflx: [], err: '' };
+                let pc, done = false;
+                const finish = () => { if (done) return; done = true; clearTimeout(timer); try { pc && pc.close(); } catch (e) {} resolve(r); };
+                const timer = setTimeout(() => { if (!r.srflx.length) r.err = '5초 안에 공인IP(STUN) 응답 없음(UDP 차단 의심)'; finish(); }, 5000);
+                try {
+                    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                    pc.createDataChannel('diag');
+                    pc.onicecandidate = (ev) => {
+                        if (!ev.candidate) { if (!r.srflx.length && !r.err) r.err = 'STUN 응답 없이 수집 종료'; return finish(); }
+                        const c = ev.candidate.candidate || '';
+                        const m = c.match(/ (\d{1,3}(?:\.\d{1,3}){3}|[0-9a-f:]+|[\w-]+\.local) \d+ typ (\w+)/i);
+                        if (!m) return;
+                        if (m[2] === 'host') r.host.push(m[1]);
+                        if (m[2] === 'srflx') { r.srflx.push(m[1]); r.ok = true; r.ms = Date.now() - t0; finish(); }
+                    };
+                    pc.createOffer().then(o => pc.setLocalDescription(o)).catch(e => { r.err = 'WebRTC 오류: ' + e; finish(); });
+                } catch (e) { r.err = 'WebRTC 사용 불가: ' + e; finish(); }
+            });
+        }
+
+        async function runNetDiag(reason) {
+            if (diagRunning) return null;
+            diagRunning = true;
+            const t0 = Date.now();
+            appendDebugLog(`===== 경로 진단 시작 (${reason}) =====`);
+            logNetworkEnvironment();
+            const c = navigator.connection;
+            if (c) appendDebugLog(`회선 품질: rtt=${c.rtt ?? '?'}ms, downlink=${c.downlink ?? '?'}Mbps`);
+            const host = diagHost();
+            const [google, script, peerHttp, unpkg, github, ws, stun] = await Promise.all([
+                diagProbe('https://www.google.com/generate_204'),
+                diagProbe(LOG_ENDPOINT || 'https://script.google.com/'),
+                diagProbe(`https://${host}/`),
+                diagProbe('https://unpkg.com/'),
+                diagProbe('https://api.github.com/'),
+                diagWebSocket(),
+                diagStun()
+            ]);
+            const show = (label, p) => appendDebugLog(`${label}: ${p.ok ? `성공 ${p.ms}ms` : `실패 ${p.ms}ms · ${p.err}`}`);
+            show('① 일반 인터넷(google.com)', google);
+            show('② 기록서버(script.google.com)', script);
+            show(`③ PeerJS 서버 HTTPS(${host})`, peerHttp);
+            appendDebugLog(`④ PeerJS 웹소켓(wss://${host}): ${ws.ok ? `성공 (열림 ${ws.openMs}ms · 서버응답 ${ws.msgMs}ms)` : `실패 · ${ws.err}${ws.code !== null ? ` · code=${ws.code}` : ''}${ws.openMs !== null ? ` · 열림 ${ws.openMs}ms` : ''}`}`);
+            appendDebugLog(`⑤ STUN/UDP: ${stun.ok ? `성공 ${stun.ms}ms · 공인IP ${stun.srflx[0]}` : `실패 · ${stun.err}`} | 내부IP ${stun.host.join(', ') || '(숨김)'}`);
+            show('보조 unpkg.com(앱 부품 CDN)', unpkg);
+            show('보조 api.github.com(업데이트 확인)', github);
+
+            let verdict;
+            if (!navigator.onLine) verdict = '기기가 오프라인 상태';
+            else if (!google.ok && !script.ok && !peerHttp.ok && !ws.ok) verdict = '인터넷 자체가 불통(와이파이 연결/AP 문제)';
+            else if (!peerHttp.ok && google.ok) verdict = `${host} 접속 자체가 차단·불통 (일반 인터넷은 정상)`;
+            else if (!ws.ok) verdict = `${host} HTTPS는 되나 웹소켓(wss)만 실패 → AP/방화벽의 웹소켓 차단 또는 서버 문제 의심`;
+            else if (!stun.ok) verdict = 'PeerJS 서버는 정상, STUN(UDP) 실패 → 기기 간 직접 연결(P2P)이 어려울 수 있음';
+            else if (ws.msgMs > 3000) verdict = `서버 정상이나 응답이 느림(${ws.msgMs}ms)`;
+            else verdict = 'PeerJS 서버 도달 정상';
+            appendDebugLog(`판정: ${verdict}`);
+            appendDebugLog(`===== 경로 진단 끝 (${Date.now() - t0}ms) =====`);
+
+            const rec = {
+                t: Date.now(), reason, verdict,
+                res: { google: google.ok ? google.ms : -1, script: script.ok ? script.ms : -1, peerHttp: peerHttp.ok ? peerHttp.ms : -1,
+                       wsOpen: ws.openMs, wsMsg: ws.msgMs, wsOk: ws.ok, stun: stun.ok ? stun.ms : -1, pubIp: stun.srflx[0] || '', lanIp: stun.host.join(','),
+                       online: navigator.onLine, net: c ? `${c.type || ''}/${c.effectiveType || ''}` : '' },
+                lines: diagLines.slice(-45)
+            };
+            diagRunning = false;
+            queueDiagUpload(rec);
+            return rec;
+        }
+
+        function queueDiagUpload(rec) {
+            let pend = [];
+            try { pend = JSON.parse(localStorage.getItem(DIAG_PEND_KEY) || '[]'); } catch (e) {}
+            pend.push(rec);
+            if (pend.length > 6) pend = pend.slice(-6);
+            try { localStorage.setItem(DIAG_PEND_KEY, JSON.stringify(pend)); } catch (e) {}
+            flushDiagUploads();
+        }
+
+        let diagFlushing = false;
+        async function flushDiagUploads() {
+            if (diagFlushing || !LOG_ENDPOINT) return;
+            let pend = [];
+            try { pend = JSON.parse(localStorage.getItem(DIAG_PEND_KEY) || '[]'); } catch (e) {}
+            if (!pend.length) return;
+            diagFlushing = true;
+            try {
+                while (pend.length) {
+                    const rec = pend[0];
+                    const r = await fetch(LOG_ENDPOINT, {
+                        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ token: LOG_TOKEN, action: 'diag', device: deviceId, nick: appState.nickname || '', room: appState.roomCode || '', ver: APP_VERSION, rec })
+                    });
+                    const j = JSON.parse(await r.text());
+                    if (!j || !j.ok) throw new Error('서버 응답 이상');
+                    pend.shift();
+                    localStorage.setItem(DIAG_PEND_KEY, JSON.stringify(pend));
+                    appendDebugLog('진단 결과를 기록 시트(진단 탭)로 보냈습니다');
+                }
+            } catch (e) {
+                appendDebugLog('진단 결과 전송 보류: ' + (e && e.message ? e.message : e) + ' (나중에 자동 재전송)');
+            }
+            diagFlushing = false;
+        }
+
+        // PeerJS 오류가 났을 때 그 순간의 경로 상태를 자동으로 남김 (기기당 2분에 한 번까지)
+        function autoDiagOnNetError(type) {
+            const now = Date.now();
+            if (now - lastAutoDiagAt < 120000) return;
+            lastAutoDiagAt = now;
+            setTimeout(() => runNetDiag(`자동: PeerJS 오류 ${type}`), 500 + Math.random() * 4000);
+        }
+
+        // 정상일 때의 기준값도 한 번 남겨서 비교할 수 있게 함 (앱 실행당 1회)
+        function scheduleBaselineDiag() {
+            if (baselineDiagDone) return;
+            baselineDiagDone = true;
+            setTimeout(() => runNetDiag('자동: 접속 성공 후 기준값'), 8000 + Math.random() * 17000);
+        }
+
         async function runConnectionDiagnostics() {
             appendDebugLog('===== 연결 점검 시작 =====');
             const role = !peerNetwork ? '없음(네트워크 미생성)' : (isRoomHost ? '방장' : '게스트');
-            appendDebugLog(`기기ID: ${deviceId} | 방코드: #${appState.roomCode} | 이름: ${appState.nickname}`);
+            appendDebugLog(`기기ID: ${deviceId} | 방코드: #${appState.roomCode} | 이름: ${appState.nickname} | 앱 ${APP_VERSION}`);
             appendDebugLog(`내 역할: ${role}${peerNetwork ? ` | PeerJS ID: ${peerNetwork.id || '(발급 대기)'}` : ''} | 재시도 횟수: ${connectAttempt}`);
             if (peerNetwork) {
                 appendDebugLog(`시그널링 서버: open=${peerNetwork.open}, disconnected=${peerNetwork.disconnected}, destroyed=${peerNetwork.destroyed}`);
@@ -1056,19 +1254,8 @@
                 appendDebugLog(`게스트: 방장 연결 open=${!!(guestHostConn && guestHostConn.open)}`);
             }
             appendDebugLog(`발견된 조원: ${Object.keys(liveSyncedPeers).length}명`);
-            logNetworkEnvironment();
             appendDebugLog(`주소: ${location.protocol}//${location.host}`);
-
-            try {
-                const ctrl = new AbortController();
-                const timer = setTimeout(() => ctrl.abort(), 6000);
-                const t0 = Date.now();
-                await fetch('https://0.peerjs.com/peerjs/id?ts=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
-                clearTimeout(timer);
-                appendDebugLog(`PeerJS 서버(0.peerjs.com) 도달 성공 (${Date.now() - t0}ms)`);
-            } catch (e) {
-                appendDebugLog(`PeerJS 서버(0.peerjs.com) 도달 실패: 이 네트워크에서 차단되었거나 인터넷 연결 문제 (${e && e.name ? e.name : e})`);
-            }
+            await runNetDiag('수동: 연결 점검');
 
             if (peerNetwork && !isRoomHost && !(guestHostConn && guestHostConn.open)) {
                 appendDebugLog('판정: 게스트인데 방장과 연결되지 않음 → 방장 ID가 낡았거나(이전 접속 잔존), 두 기기 사이 P2P(UDP)가 막힌 경우');
@@ -1079,8 +1266,7 @@
         }
 
         function copyDebugLogs() {
-            const logBox = document.getElementById('debug-log-content');
-            const text = logBox ? logBox.innerText : '';
+            const text = diagLines.join('\n');
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(
                     () => showToast('진단 로그를 복사했습니다.'),
@@ -1529,12 +1715,15 @@
         function joinAsGuest(roomCode, hostPeerId) {
             if (activeRoomId !== roomCode) return;
             isRoomHost = false;
+            const tGuestNew = Date.now();
             const guestPeer = new Peer({ debug: 0 });
             peerNetwork = guestPeer;
 
             guestPeer.on('error', (gerr) => {
                 if (peerNetwork !== guestPeer) return;
                 const type = gerr && gerr.type ? gerr.type : String(gerr);
+                appendDebugLog(`게스트 PeerJS 오류: ${type} (노드 생성 후 ${Date.now() - tGuestNew}ms)`);
+                if (/network|server-error|socket/.test(type)) autoDiagOnNetError(type);
                 const connected = !!(guestHostConn && guestHostConn.open);
                 if (type === 'peer-unavailable') {
                     scheduleReconnect('게스트 오류: 방장 ID는 있으나 응답 없음(이전 접속 잔존 가능)');
@@ -1546,11 +1735,12 @@
             });
             guestPeer.on('disconnected', () => {
                 if (peerNetwork !== guestPeer || guestPeer.destroyed) return;
+                appendDebugLog('시그널링 서버와 연결 끊김(게스트 노드)');
                 safeSignalingReconnect(guestPeer, '게스트 노드');
             });
             guestPeer.on('open', () => {
                 if (peerNetwork !== guestPeer) return;
-                appendDebugLog(`게스트 노드 생성 성공 (${guestPeer.id}) → 방장에게 연결 시도`);
+                appendDebugLog(`게스트 노드 생성 성공 (${guestPeer.id}) · 시그널링 서버 응답 ${Date.now() - tGuestNew}ms → 방장에게 연결 시도`);
                 const conn = guestPeer.connect(hostPeerId, {
                     reliable: true,
                     metadata: { senderId: deviceId, appVer: APP_VERSION, nickname: appState.nickname }
@@ -1642,6 +1832,7 @@
             logNetworkEnvironment();
             setSyncBadge('연결 탐색 중...');
 
+            const tHostNew = Date.now();
             const hostCandidate = new Peer(hostPeerId, { debug: 0 });
             hostCandidate.on('connection', (conn) => {
                 if (peerNetwork === hostCandidate) setupHostConnection(conn);
@@ -1656,18 +1847,22 @@
                 isRoomHost = true;
                 connectAttempt = 0;
                 sigReconnectFails = 0;
-                appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId})`);
+                appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId}) · 시그널링 서버 응답 ${Date.now() - tHostNew}ms`);
+                scheduleBaselineDiag();
                 setSyncBadge('실시간 동기화');
                 startHostHeartbeat();
             });
 
             hostCandidate.on('disconnected', () => {
                 if (peerNetwork !== hostCandidate || hostCandidate.destroyed) return;
+                appendDebugLog('시그널링 서버와 연결 끊김(방장 노드)');
                 safeSignalingReconnect(hostCandidate, '방장 노드');
             });
 
             hostCandidate.on('error', (err) => {
                 const type = err && err.type ? err.type : String(err);
+                if (type !== 'unavailable-id') appendDebugLog(`방장 PeerJS 오류: ${type} (노드 생성 후 ${Date.now() - tHostNew}ms)`);
+                if (/network|server-error|socket/.test(type)) autoDiagOnNetError(type);
                 if (type === 'unavailable-id') {
                     appendDebugLog(`기존 방장(#${roomCode}) 발견 → 게스트 모드로 연결`);
                     try { hostCandidate.destroy(); } catch (e) {}
@@ -3590,6 +3785,7 @@
                 }
             }
             idbPruneOrphans();
+            restoreDiagLogPanel();
             setTimeout(pollResetEpoch, 1500 + Math.random() * 3000);
             setInterval(pollResetEpoch, RESET_POLL_MS);
             if (IS_NATIVE) {
