@@ -31,6 +31,13 @@ function doPost(e) {
       return json_({ ok: true, epoch: ep });
     }
     if (body.action === 'diag') return diagRow_(ss, body);
+    if (body.action === 'setServer') {
+      var sv = body.server || {};
+      var rev = Date.now();
+      var cfg = sv.host ? { rev: rev, host: String(sv.host).slice(0, 100), port: Number(sv.port) || 9000, path: String(sv.path || '/'), secure: !!sv.secure } : { rev: rev };
+      PropertiesService.getScriptProperties().setProperty('SERVER_CFG', JSON.stringify(cfg));
+      return json_({ ok: true, rev: rev });
+    }
     if (body.action === 'teacherUpload') return teacherUpload_(ss, body);
     var log = sheet_(ss, '로그', LOG_HEAD);
     var dev = sheet_(ss, '기기목록', DEV_HEAD);
@@ -46,9 +53,13 @@ function doPost(e) {
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.a === 'epoch') {
-    return json_({ ok: true, epoch: Number(PropertiesService.getScriptProperties().getProperty('RESET_EPOCH') || 0) });
+    var P = PropertiesService.getScriptProperties();
+    var srv = null;
+    try { srv = JSON.parse(P.getProperty('SERVER_CFG') || 'null'); } catch (x) { srv = null; }
+    return json_({ ok: true, epoch: Number(P.getProperty('RESET_EPOCH') || 0), server: srv });
   }
-  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.17 · 선생님께 전송 · 전체 초기화 · 경로 진단 기록 지원)');
+  if (e && e.parameter && e.parameter.a === 'update') return json_(updateInfo_());
+  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.18 · 선생님께 전송 · 전체 초기화 · 경로 진단 · 업데이트 정보 · 서버 지정 지원)');
 }
 
 var DIAG_HEAD = ['서버시간','기기측 시간','기기ID','닉네임','방코드','앱버전','사유','판정','공인IP','내부IP','회선','구글(ms)','기록서버(ms)','PeerJS HTTPS(ms)','웹소켓 열림(ms)','웹소켓 응답(ms)','웹소켓 성공','STUN(ms)','직전 로그'];
@@ -67,6 +78,39 @@ function diagRow_(ss, b) {
   ];
   sh.appendRow(row);
   return json_({ ok: true });
+}
+
+// 학생 기기들이 GitHub를 직접 부르면 학교 공인 IP 하나로 '시간당 60번' 한도에 걸리므로,
+// 이 스크립트가 10분에 한 번만 GitHub에 묻고 저장해 둔 값을 모두에게 돌려줍니다.
+var GH_LATEST = 'https://api.github.com/repos/uo0902-ai/gnup/releases/latest';
+function updateInfo_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get('UPD');
+  if (hit) return JSON.parse(hit);
+  var props = PropertiesService.getScriptProperties();
+  var lock = LockService.getScriptLock();
+  var locked = false;
+  try { locked = lock.tryLock(5000); } catch (e) {}
+  try {
+    hit = cache.get('UPD');
+    if (hit) return JSON.parse(hit);
+    try {
+      var r = UrlFetchApp.fetch(GH_LATEST, { muteHttpExceptions: true, headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'gyenam-fileupdown' } });
+      if (r.getResponseCode() === 200) {
+        var j = JSON.parse(r.getContentText());
+        var apk = (j.assets || []).filter(function (a) { return /\.apk$/i.test(a.name || ''); })[0];
+        var o = { ok: true, tag: j.tag_name, apkUrl: apk ? apk.browser_download_url : '', htmlUrl: j.html_url || '', at: Date.now() };
+        cache.put('UPD', JSON.stringify(o), 600);
+        props.setProperty('UPD_LAST', JSON.stringify(o));
+        return o;
+      }
+    } catch (e) {}
+    var last = props.getProperty('UPD_LAST');
+    if (last) { var s = JSON.parse(last); s.stale = true; cache.put('UPD', JSON.stringify(s), 60); return s; }
+    return { ok: false };
+  } finally {
+    if (locked) lock.releaseLock();
+  }
 }
 
 function out_(t) { return ContentService.createTextOutput(t); }

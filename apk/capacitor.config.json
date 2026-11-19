@@ -10,5 +10,8 @@
       "smallIcon": "ic_stat_gyenam",
       "iconColor": "#3730A3"
     }
+  },
+  "android": {
+    "allowMixedContent": true
   }
 }

@@ -78,6 +78,9 @@ def _fix_launch_mode(mx):
         new = tag[:-1] + ' android:launchMode="singleTask">'
     return mx.replace(tag, new, 1)
 m = _fix_launch_mode(m)
+# 학교 노트북을 PeerJS 서버로 쓸 때(ws://IP:포트) 필요한 평문 연결 허용
+if 'usesCleartextTraffic' not in m:
+    m = re.sub(r'<application\b', '<application android:usesCleartextTraffic="true"', m, count=1)
 if 'KeepAliveService' not in m:
     m = m.replace('</activity>', share_xml + '        </activity>', 1)
     m = m.replace('</application>', service_xml + '    </application>', 1)

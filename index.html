@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.17)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.17)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.17';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.18)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.18)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.18';
 -->
 <html lang="ko">
 <head>
@@ -321,17 +321,18 @@
                         </div>
                     </div>
                     <div id="debug-log-content" class="max-h-36 overflow-y-auto space-y-1 leading-relaxed"></div>
+                    <button type="button" onclick="openSettingsModal()" id="btn-teacher-settings" class="hidden w-full mt-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-extrabold font-sans transition active:scale-95">교사 설정 (업데이트 확인 방식 · 서버)</button>
                     <button type="button" onclick="requestGlobalReset()" id="btn-global-reset" class="hidden w-full mt-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold font-sans transition active:scale-95">전체 초기화 (모든 방 · 모든 학생 첫 화면으로)</button>
                 </section>
             </main>
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.17 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.18 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.17</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.18</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -462,6 +463,44 @@
         <!-- 모달 3: 외부 앱 공유 수신 모달 (Web Share Target) -->
         <!-- ========================================== -->
         <!-- 선생님께 전송: 학년·반·이름 입력 → 파일 첨부 → 선생님 구글 드라이브로 저장 -->
+        <div id="teacher-settings-modal" class="hidden absolute inset-0 z-[57] bg-slate-950/70 backdrop-blur-xs flex items-end justify-center">
+            <div class="w-full bg-white rounded-t-3xl p-5 max-h-[94%] overflow-y-auto">
+                <div class="flex items-start justify-between mb-3">
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900">교사 설정</h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">이 기기에 저장되며 앱을 업데이트해도 바뀌지 않습니다.</p>
+                    </div>
+                    <button onclick="closeSettingsModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 p-3 mb-3">
+                    <p class="text-xs font-extrabold text-slate-800 mb-2">업데이트 확인 방식 (이 기기만)</p>
+                    <label class="flex items-start gap-2 text-xs text-slate-700 mb-1.5"><input type="radio" name="upd-src" value="sheet" class="mt-0.5" onchange="setUpdateSource('sheet')"><span><b>구글시트 경유</b> (학생 기본)<br><span class="text-[11px] text-slate-500">GitHub 요청 한도에 걸리지 않습니다. 새 버전 반영이 최대 10분 늦을 수 있습니다.</span></span></label>
+                    <label class="flex items-start gap-2 text-xs text-slate-700"><input type="radio" name="upd-src" value="github" class="mt-0.5" onchange="setUpdateSource('github')"><span><b>GitHub 직접</b> (교사용)<br><span class="text-[11px] text-slate-500">새 버전을 바로 확인합니다. 실패하면 구글시트로 한 번 더 시도합니다.</span></span></label>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 p-3 mb-3">
+                    <p class="text-xs font-extrabold text-slate-800 mb-1">PeerJS 서버 (모든 기기에 적용)</p>
+                    <p id="srv-current" class="text-[11px] text-slate-600 mb-2"></p>
+                    <div class="grid grid-cols-5 gap-2 mb-2">
+                        <label class="col-span-3 text-[11px] font-bold text-slate-600">노트북 IP 주소
+                            <input id="srv-host" type="text" inputmode="decimal" placeholder="예: 192.168.0.25" class="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+                        </label>
+                        <label class="col-span-2 text-[11px] font-bold text-slate-600">포트
+                            <input id="srv-port" type="number" inputmode="numeric" value="9000" class="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm">
+                        </label>
+                    </div>
+                    <p id="srv-msg" class="text-[11px] text-slate-500 min-h-[16px] mb-2"></p>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <button onclick="testServerFromSettings()" class="py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs">연결 시험</button>
+                        <button onclick="publishServerFromSettings(false)" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs">노트북 서버로 전체 적용</button>
+                    </div>
+                    <button onclick="publishServerFromSettings(true)" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">기본 서버(0.peerjs.com)로 전체 되돌리기</button>
+                    <p class="text-[10px] text-slate-400 mt-2 leading-relaxed">학생 기기는 30초 안에 따라갑니다. 학생 기기에서 접속 시험이 실패하면 그 기기는 바꾸지 않습니다. 노트북 서버는 앱(APK)에서만 쓸 수 있습니다.</p>
+                </div>
+            </div>
+        </div>
+
         <div id="teacher-modal" class="hidden absolute inset-0 z-[55] bg-slate-950/70 backdrop-blur-xs flex items-end justify-center">
             <div class="w-full bg-white rounded-t-3xl p-5 max-h-[94%] overflow-y-auto">
                 <div class="flex items-start justify-between mb-3">
@@ -628,7 +667,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.17';
+        const APP_VERSION = 'v3.18';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -704,14 +743,85 @@
             } else if (headerTapCount >= 12) {
                 headerTapCount = 0;
                 if (panel) panel.classList.remove('hidden');
-                const btn = document.getElementById('btn-global-reset');
-                if (btn) btn.classList.remove('hidden');
-                appendDebugLog('전체 초기화 버튼 표시됨');
+                ['btn-global-reset', 'btn-teacher-settings'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('hidden'); });
+                appendDebugLog('전체 초기화·교사 설정 버튼 표시됨');
             }
         }
 
-        // 연결 서버 확인: 서버 주소가 바뀌면 아래 주소만 고치면 됩니다
-        const SERVER_CHECK_URL = 'https://0.peerjs.com/';
+        // ==========================================
+        // 교사 설정 (제목 12번 탭 → [설정]): 업데이트 확인 방식, PeerJS 서버
+        //  - 기기에 저장되어 앱을 업데이트해도 유지됩니다 (학생 기본: 구글시트 경유, 교사: GitHub 직접)
+        // ==========================================
+        const TEACHER_SETTINGS_KEY = 'gyenam_teacher_settings';
+        const SERVER_CFG_KEY = 'gyenam_server_cfg';
+        const DEFAULT_PEER_HOST = '0.peerjs.com';
+
+        function getTeacherSettings() {
+            try { const o = JSON.parse(localStorage.getItem(TEACHER_SETTINGS_KEY) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; }
+        }
+        function saveTeacherSettings(patch) {
+            const o = Object.assign(getTeacherSettings(), patch);
+            try { localStorage.setItem(TEACHER_SETTINGS_KEY, JSON.stringify(o)); } catch (e) {}
+            return o;
+        }
+        function getUpdateSource() { return getTeacherSettings().updateSource === 'github' ? 'github' : 'sheet'; }
+
+        // 현재 PeerJS 서버 설정: {rev, host, port, path, secure} 또는 null(=기본 공개 서버)
+        function getServerCfg() {
+            try {
+                const o = JSON.parse(localStorage.getItem(SERVER_CFG_KEY) || 'null');
+                return (o && o.host) ? o : null;
+            } catch (e) { return null; }
+        }
+        function getServerRev() {
+            try { const o = JSON.parse(localStorage.getItem(SERVER_CFG_KEY) || 'null'); return o ? Number(o.rev || 0) : 0; } catch (e) { return 0; }
+        }
+        function peerOpts() {
+            const c = getServerCfg();
+            if (!c) return { debug: 0 };
+            return { debug: 0, host: c.host, port: Number(c.port) || 9000, path: c.path || '/', secure: !!c.secure };
+        }
+        function serverLabel(c) { return c ? `${c.host}:${c.port}` : `기본 서버(${DEFAULT_PEER_HOST})`; }
+        function serverCheckUrl() {
+            const c = getServerCfg();
+            return c ? `${c.secure ? 'https' : 'http'}://${c.host}:${c.port}/` : `https://${DEFAULT_PEER_HOST}/`;
+        }
+        function wsUrlFor(c, id, token) {
+            const rest = `peerjs?key=peerjs&id=${id}&token=${token}&version=1.5.4`;
+            if (!c) return `wss://${DEFAULT_PEER_HOST}/${rest}`;
+            const p = (c.path || '/').replace(/^\/?/, '/').replace(/\/?$/, '/');
+            return `${c.secure ? 'wss' : 'ws'}://${c.host}:${c.port}${p}${rest}`;
+        }
+
+        // 후보 서버로 웹소켓이 열리는지 시험 (적용 전 점검용)
+        function testServerCfg(cfg, timeoutMs = 6000) {
+            return new Promise((resolve) => {
+                let ws, done = false;
+                const finish = (ok, msg) => { if (done) return; done = true; clearTimeout(timer); try { ws && ws.close(1000); } catch (e) {} resolve({ ok, msg }); };
+                const timer = setTimeout(() => finish(false, '시간 초과(응답 없음)'), timeoutMs);
+                try {
+                    const rnd = Math.random().toString(36).slice(2, 10);
+                    ws = new WebSocket(wsUrlFor(cfg, 'gnuptest' + rnd, rnd));
+                } catch (e) { return finish(false, '주소가 올바르지 않습니다'); }
+                ws.onmessage = (ev) => { let ok = true; try { ok = JSON.parse(ev.data).type === 'OPEN'; } catch (e) {} finish(ok, ok ? '연결 성공' : '이상한 응답'); };
+                ws.onerror = () => {};
+                ws.onclose = (ev) => finish(false, `연결 실패(code ${ev.code})`);
+            });
+        }
+
+        // 서버 설정을 바꾸고, 방에 들어가 있으면 같은 방에 새 서버로 다시 접속
+        function applyServerCfg(cfg, why) {
+            try { localStorage.setItem(SERVER_CFG_KEY, JSON.stringify(cfg || { rev: 0 })); } catch (e) {}
+            appendDebugLog(`PeerJS 서버 변경 → ${serverLabel(getServerCfg())} (${why})`);
+            if (appState.isConnected && !updateLocked) {
+                teardownRoomNetwork();
+                setSyncBadge('서버 변경 중...');
+                setTimeout(() => { if (appState.isConnected) connectPeerRoomNetwork(appState.roomCode); }, 500 + Math.random() * 2500);
+            }
+            refreshSettingsUi();
+        }
+
+        // 연결 서버 확인: 현재 설정된 PeerJS 서버(기본 또는 노트북)로 점검합니다
         let serverChecking = false;
 
         async function checkServerStatus() {
@@ -727,11 +837,11 @@
                 const timer = setTimeout(() => ctrl.abort(), 8000);
                 let body = null;
                 try {
-                    const r = await fetch(SERVER_CHECK_URL + '?_=' + Date.now(), { cache: 'no-store', signal: ctrl.signal });
+                    const r = await fetch(serverCheckUrl() + '?_=' + Date.now(), { cache: 'no-store', signal: ctrl.signal });
                     body = await r.text();
                 } catch (e) {
                     if (ctrl.signal.aborted) throw e;
-                    await fetch(SERVER_CHECK_URL, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+                    await fetch(serverCheckUrl(), { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
                 }
                 clearTimeout(timer);
                 const ms = Date.now() - t0;
@@ -743,16 +853,74 @@
                     ? '서버에 접속할 수 없습니다. 서버 문제이거나 학교 네트워크가 막았을 수 있습니다.'
                     : '인터넷이 연결되어 있지 않습니다. 와이파이를 확인해주세요.';
             }
-            appendDebugLog(`서버 확인(${SERVER_CHECK_URL}): ${msg}`);
+            appendDebugLog(`서버 확인(${serverCheckUrl()}): ${msg}`);
             showToast(msg, type);
             if (label) label.textContent = '서버 확인';
             serverChecking = false;
         }
 
+        // ---- 교사 설정 창 ----
+        function openSettingsModal() {
+            refreshSettingsUi();
+            document.getElementById('teacher-settings-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        function closeSettingsModal() { document.getElementById('teacher-settings-modal').classList.add('hidden'); }
+        function refreshSettingsUi() {
+            const cur = document.getElementById('srv-current');
+            if (!cur) return;
+            const c = getServerCfg();
+            cur.textContent = '현재 사용 중: ' + serverLabel(c);
+            document.querySelectorAll('input[name="upd-src"]').forEach(r => { r.checked = (r.value === getUpdateSource()); });
+            if (c) { document.getElementById('srv-host').value = c.host; document.getElementById('srv-port').value = c.port; }
+        }
+        function setUpdateSource(v) {
+            saveTeacherSettings({ updateSource: v });
+            showToast(v === 'github' ? '업데이트 확인: GitHub 직접으로 설정했습니다.' : '업데이트 확인: 구글시트 경유로 설정했습니다.');
+        }
+        function readServerInputs() {
+            const host = document.getElementById('srv-host').value.trim();
+            const port = parseInt(document.getElementById('srv-port').value, 10) || 9000;
+            if (!/^[A-Za-z0-9.\-]+$/.test(host)) return null;
+            return { host, port, path: '/', secure: false };
+        }
+        async function testServerFromSettings() {
+            const msg = document.getElementById('srv-msg');
+            const cfg = readServerInputs();
+            if (!cfg) { msg.textContent = 'IP 주소를 올바르게 입력해주세요. (예: 192.168.0.25)'; return false; }
+            msg.textContent = '연결 시험 중...';
+            const t = await testServerCfg(cfg);
+            msg.textContent = (t.ok ? '✅ ' : '❌ ') + `${cfg.host}:${cfg.port} · ${t.msg}` + (t.ok ? '' : ' (서버가 켜져 있는지, 방화벽·같은 와이파이인지 확인)');
+            appendDebugLog(`서버 시험(${cfg.host}:${cfg.port}): ${t.msg}`);
+            return t.ok;
+        }
+        async function publishServerFromSettings(toDefault) {
+            const msg = document.getElementById('srv-msg');
+            if (!LOG_ENDPOINT) { msg.textContent = '기록 서버 주소가 없어 전체 적용을 할 수 없습니다.'; return; }
+            let cfg = { host: '' };
+            if (!toDefault) {
+                const input = readServerInputs();
+                if (!input) { msg.textContent = 'IP 주소를 올바르게 입력해주세요. (예: 192.168.0.25)'; return; }
+                const ok = await testServerFromSettings();
+                if (!ok && !confirm('이 서버에 접속이 안 됩니다. 그래도 모든 기기에 적용할까요?\n(적용하면 접속이 안 되는 기기는 기존 서버를 유지합니다)')) return;
+                cfg = input;
+            } else if (!confirm('모든 기기를 기본 서버(0.peerjs.com)로 되돌릴까요?')) return;
+            msg.textContent = '전체 적용 요청 중...';
+            try {
+                const r = await fetch(LOG_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token: LOG_TOKEN, action: 'setServer', server: cfg }) });
+                const j = JSON.parse(await r.text());
+                if (!j || !j.ok) throw new Error((j && j.error) || '서버 응답 오류');
+                applyServerCfg(cfg.host ? Object.assign({ rev: j.rev }, cfg) : { rev: j.rev }, '내가 직접 바꿈');
+                msg.textContent = '✅ 적용 요청 완료. 학생 기기는 30초 안에 따라옵니다.';
+                appendDebugLog(`서버 전체 적용 등록 (rev ${j.rev}): ${cfg.host ? cfg.host + ':' + cfg.port : '기본 서버'}`);
+            } catch (e) {
+                msg.textContent = '❌ 적용 실패: 기록 서버(앱스 스크립트)가 최신 버전인지 확인해주세요.';
+            }
+        }
+
         function closeDebugPanel() {
             document.getElementById('debug-log-panel').classList.add('hidden');
-            const btn = document.getElementById('btn-global-reset');
-            if (btn) btn.classList.add('hidden');
+            ['btn-global-reset', 'btn-teacher-settings'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('hidden'); });
         }
 
         // ==========================================
@@ -762,19 +930,40 @@
         const RESET_EPOCH_KEY = 'gyenam_reset_epoch';
         const RESET_POLL_MS = 30000;
 
+        let lastServerFromSheet = null;
         async function fetchResetEpoch() {
             if (!LOG_ENDPOINT) return null;
             try {
                 const r = await fetch(LOG_ENDPOINT + (LOG_ENDPOINT.includes('?') ? '&' : '?') + 'a=epoch&_=' + Date.now(), { cache: 'no-store' });
                 const j = JSON.parse(await r.text());
-                return (j && j.ok && Number(j.epoch) >= 0) ? Number(j.epoch) : null;
+                if (!(j && j.ok && Number(j.epoch) >= 0)) return null;
+                lastServerFromSheet = j.server || null;
+                return Number(j.epoch);
             } catch (e) { return null; }
+        }
+
+        // 선생님이 서버를 바꿨는지 확인하고, 바뀌었으면 시험 후 따라감
+        let serverSwitching = false;
+        async function syncServerFromSheet() {
+            const srv = lastServerFromSheet;
+            if (!srv || serverSwitching) return;
+            const rev = Number(srv.rev || 0);
+            if (rev === getServerRev()) return;
+            serverSwitching = true;
+            try {
+                if (!srv.host) { applyServerCfg({ rev }, '선생님이 기본 서버로 되돌림'); return; }
+                const cfg = { rev, host: String(srv.host), port: Number(srv.port) || 9000, path: srv.path || '/', secure: !!srv.secure };
+                const t = await testServerCfg(cfg);
+                if (!t.ok) { appendDebugLog(`선생님이 지정한 서버(${cfg.host}:${cfg.port})에 이 기기에서 접속 시험 실패 → 기존 서버 유지 (${t.msg})`); return; }
+                applyServerCfg(cfg, '선생님이 서버를 바꿈');
+            } finally { serverSwitching = false; }
         }
 
         async function pollResetEpoch() {
             const e = await fetchResetEpoch();
             if (e === null) return;
             flushDiagUploads();
+            syncServerFromSheet();
             const saved = Number(localStorage.getItem(RESET_EPOCH_KEY) || '');
             localStorage.setItem(RESET_EPOCH_KEY, String(e));
             // 처음 확인한 값은 기준으로만 저장 (새로 설치한 기기가 곧바로 초기화되지 않도록)
@@ -892,15 +1081,43 @@
             lucide.createIcons();
         }
 
+        // 업데이트 정보를 가져옴: 학생 기본은 구글시트(10분마다 한 번만 GitHub에 묻는 저장값), 교사 설정이면 GitHub 직접
+        // 한쪽이 실패하면 다른 쪽으로 한 번 더 시도. 반환: {tag_name, assets, html_url} 또는 null
+        let lastUpdateErr = '';
+        async function fetchJsonTimeout(url, ms = 8000) {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), ms);
+            try {
+                const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+                if (!res.ok) { lastUpdateErr = (res.status === 403 || res.status === 429) ? `GitHub 요청 한도 초과(${res.status})` : `서버 응답 오류(${res.status})`; return null; }
+                return JSON.parse(await res.text());
+            } catch (e) { lastUpdateErr = '연결 실패'; return null; }
+            finally { clearTimeout(t); }
+        }
+        async function fetchReleaseFromSheet() {
+            if (!LOG_ENDPOINT) return null;
+            const j = await fetchJsonTimeout(LOG_ENDPOINT + (LOG_ENDPOINT.includes('?') ? '&' : '?') + 'a=update&_=' + Date.now());
+            if (!j || !j.ok || !j.tag) { if (j) lastUpdateErr = '기록서버가 업데이트 정보를 못 줌(스크립트를 최신으로 배포했는지 확인)'; return null; }
+            return { tag_name: j.tag, html_url: j.htmlUrl || '', assets: j.apkUrl ? [{ name: 'app.apk', browser_download_url: j.apkUrl }] : [] };
+        }
+        async function fetchReleaseFromGithub() {
+            const j = await fetchJsonTimeout(UPDATE_API_URL);
+            return (j && j.tag_name) ? j : null;
+        }
+        async function fetchReleaseInfo() {
+            lastUpdateErr = '';
+            const first = getUpdateSource() === 'github' ? fetchReleaseFromGithub : fetchReleaseFromSheet;
+            const second = getUpdateSource() === 'github' ? fetchReleaseFromSheet : fetchReleaseFromGithub;
+            let rel = await first();
+            if (!rel) rel = await second();
+            return rel;
+        }
+
         // 반환: 'newer'(새 버전 있음) | 'latest'(최신) | 'error'
         async function fetchUpdateState() {
             try {
-                const ctrl = new AbortController();
-                const t = setTimeout(() => ctrl.abort(), 8000);
-                const res = await fetch(UPDATE_API_URL, { cache: 'no-store', signal: ctrl.signal });
-                clearTimeout(t);
-                if (!res.ok) return 'error';
-                const rel = await res.json();
+                const rel = await fetchReleaseInfo();
+                if (!rel) return 'error';
                 const tag = String(rel.tag_name || '');
                 if (!tag) return 'error';
                 const apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name || ''));
@@ -923,7 +1140,8 @@
         function silentUpdateCheck(force = false) {
             if (updateLocked) return;
             if (!force && Date.now() - lastUpdateCheckAt < 5 * 60 * 1000) return;
-            fetchUpdateState();
+            if (force) fetchUpdateState();
+            else setTimeout(() => { if (!updateLocked && Date.now() - lastUpdateCheckAt >= 5 * 60 * 1000) fetchUpdateState(); }, Math.random() * 4000);
         }
 
         async function checkForAppUpdates() {
@@ -940,7 +1158,7 @@
             let state;
             try { state = await fetchUpdateState(); } finally { spin(false); }
             if (state === 'latest') { showToast(`계남중 파일업다운 ${APP_VERSION} 최신 버전을 사용 중입니다!`); spin(false); }
-            else if (state === 'error') { showToast('업데이트 정보를 가져오지 못했습니다. 인터넷 연결을 확인해주세요.', 'warning'); spin(false); }
+            else if (state === 'error') { showToast('업데이트 정보를 가져오지 못했습니다' + (lastUpdateErr ? ` (${lastUpdateErr})` : '') + '. 인터넷 연결을 확인해주세요.', 'warning'); spin(false); }
         }
 
         function reloadLatestWeb() {
@@ -1084,7 +1302,7 @@
         let lastAutoDiagAt = 0;
         let baselineDiagDone = false;
 
-        function diagHost() { try { return new URL(SERVER_CHECK_URL).host; } catch (e) { return '0.peerjs.com'; } }
+        function diagHost() { try { return new URL(serverCheckUrl()).host; } catch (e) { return DEFAULT_PEER_HOST; } }
 
         async function diagProbe(url) {
             const t0 = Date.now();
@@ -1107,7 +1325,7 @@
                 const timer = setTimeout(() => { r.err = r.openMs === null ? '8초 안에 연결 안 열림(웹소켓 핸드셰이크 무응답)' : '연결은 열렸으나 서버 응답 없음'; finish(); }, 8000);
                 try {
                     const rnd = Math.random().toString(36).slice(2, 10);
-                    ws = new WebSocket(`wss://${diagHost()}/peerjs?key=peerjs&id=gnupdiag${rnd}&token=${rnd}&version=1.5.4`);
+                    ws = new WebSocket(wsUrlFor(getServerCfg(), 'gnupdiag' + rnd, rnd));
                 } catch (e) { r.err = '웹소켓 생성 실패: ' + e; return finish(); }
                 ws.onopen = () => { r.openMs = Date.now() - t0; };
                 ws.onmessage = (ev) => { r.msgMs = Date.now() - t0; try { r.ok = JSON.parse(ev.data).type === 'OPEN'; } catch (e) { r.ok = true; } finish(); };
@@ -1151,9 +1369,9 @@
             const [google, script, peerHttp, unpkg, github, ws, stun] = await Promise.all([
                 diagProbe('https://www.google.com/generate_204'),
                 diagProbe(LOG_ENDPOINT || 'https://script.google.com/'),
-                diagProbe(`https://${host}/`),
+                diagProbe(serverCheckUrl()),
                 diagProbe('https://unpkg.com/'),
-                diagProbe('https://api.github.com/'),
+                diagProbe('https://github.com/'),
                 diagWebSocket(),
                 diagStun()
             ]);
@@ -1161,10 +1379,10 @@
             show('① 일반 인터넷(google.com)', google);
             show('② 기록서버(script.google.com)', script);
             show(`③ PeerJS 서버 HTTPS(${host})`, peerHttp);
-            appendDebugLog(`④ PeerJS 웹소켓(wss://${host}): ${ws.ok ? `성공 (열림 ${ws.openMs}ms · 서버응답 ${ws.msgMs}ms)` : `실패 · ${ws.err}${ws.code !== null ? ` · code=${ws.code}` : ''}${ws.openMs !== null ? ` · 열림 ${ws.openMs}ms` : ''}`}`);
+            appendDebugLog(`④ PeerJS 웹소켓(${host}): ${ws.ok ? `성공 (열림 ${ws.openMs}ms · 서버응답 ${ws.msgMs}ms)` : `실패 · ${ws.err}${ws.code !== null ? ` · code=${ws.code}` : ''}${ws.openMs !== null ? ` · 열림 ${ws.openMs}ms` : ''}`}`);
             appendDebugLog(`⑤ STUN/UDP: ${stun.ok ? `성공 ${stun.ms}ms · 공인IP ${stun.srflx[0]}` : `실패 · ${stun.err}`} | 내부IP ${stun.host.join(', ') || '(숨김)'}`);
             show('보조 unpkg.com(앱 부품 CDN)', unpkg);
-            show('보조 api.github.com(업데이트 확인)', github);
+            show('보조 github.com(앱 내려받기)', github);
 
             let verdict;
             if (!navigator.onLine) verdict = '기기가 오프라인 상태';
@@ -1236,7 +1454,7 @@
         function scheduleBaselineDiag() {
             if (baselineDiagDone) return;
             baselineDiagDone = true;
-            setTimeout(() => runNetDiag('자동: 접속 성공 후 기준값'), 8000 + Math.random() * 17000);
+            setTimeout(() => runNetDiag('자동: 접속 성공 후 기준값'), 15000 + Math.random() * 60000);
         }
 
         async function runConnectionDiagnostics() {
@@ -1716,7 +1934,7 @@
             if (activeRoomId !== roomCode) return;
             isRoomHost = false;
             const tGuestNew = Date.now();
-            const guestPeer = new Peer({ debug: 0 });
+            const guestPeer = new Peer(peerOpts());
             peerNetwork = guestPeer;
 
             guestPeer.on('error', (gerr) => {
@@ -1833,7 +2051,7 @@
             setSyncBadge('연결 탐색 중...');
 
             const tHostNew = Date.now();
-            const hostCandidate = new Peer(hostPeerId, { debug: 0 });
+            const hostCandidate = new Peer(hostPeerId, peerOpts());
             hostCandidate.on('connection', (conn) => {
                 if (peerNetwork === hostCandidate) setupHostConnection(conn);
             });
