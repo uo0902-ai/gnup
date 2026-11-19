@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.18)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.18)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.18';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.19)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.19)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.19';
 -->
 <html lang="ko">
 <head>
@@ -328,11 +328,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.18 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.19 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.18</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.19</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -477,6 +477,13 @@
                     <p class="text-xs font-extrabold text-slate-800 mb-2">업데이트 확인 방식 (이 기기만)</p>
                     <label class="flex items-start gap-2 text-xs text-slate-700 mb-1.5"><input type="radio" name="upd-src" value="sheet" class="mt-0.5" onchange="setUpdateSource('sheet')"><span><b>구글시트 경유</b> (학생 기본)<br><span class="text-[11px] text-slate-500">GitHub 요청 한도에 걸리지 않습니다. 새 버전 반영이 최대 10분 늦을 수 있습니다.</span></span></label>
                     <label class="flex items-start gap-2 text-xs text-slate-700"><input type="radio" name="upd-src" value="github" class="mt-0.5" onchange="setUpdateSource('github')"><span><b>GitHub 직접</b> (교사용)<br><span class="text-[11px] text-slate-500">새 버전을 바로 확인합니다. 실패하면 구글시트로 한 번 더 시도합니다.</span></span></label>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 p-3 mb-3">
+                    <p class="text-xs font-extrabold text-slate-800 mb-2">로그 저장 (이 기기만)</p>
+                    <label class="flex items-start gap-2 text-xs text-slate-700"><input id="set-logsave" type="checkbox" class="mt-0.5" onchange="setLogSave(this.checked)"><span><b>로그를 저장하고 구글시트에 기록</b><br><span class="text-[11px] text-slate-500">끄면(기본) 앱을 껐다 켤 때 로그가 지워지고, 자동 경로 진단·시트 기록도 하지 않습니다.</span></span></label>
+                    <button onclick="sendLogToSheetNow()" class="mt-2 w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs">지금 로그를 구글시트(진단 탭)로 보내기</button>
+                    <p id="set-logmsg" class="text-[11px] text-slate-500 mt-1 min-h-[14px]"></p>
                 </div>
 
                 <div class="rounded-2xl border border-slate-200 p-3 mb-3">
@@ -667,7 +674,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.18';
+        const APP_VERSION = 'v3.19';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -690,12 +697,22 @@
         const DIAG_LOG_MAX = 400;
         let diagLines = [];
         let diagSaveTimer = null;
-        try { diagLines = JSON.parse(localStorage.getItem(DIAG_LOG_KEY) || '[]'); if (!Array.isArray(diagLines)) diagLines = []; } catch (e) { diagLines = []; }
+        // 로그 저장은 교사 설정(제목 12번 → 교사 설정 → 로그 저장)을 켠 기기만 합니다. 꺼져 있으면 앱을 껐다 켤 때 로그가 지워집니다.
+        function logSaveEnabled() {
+            try { return JSON.parse(localStorage.getItem('gyenam_teacher_settings') || '{}').logSave === true; } catch (e) { return false; }
+        }
+        if (logSaveEnabled()) {
+            try { diagLines = JSON.parse(localStorage.getItem(DIAG_LOG_KEY) || '[]'); if (!Array.isArray(diagLines)) diagLines = []; } catch (e) { diagLines = []; }
+        } else {
+            diagLines = [];
+            try { localStorage.removeItem(DIAG_LOG_KEY); localStorage.removeItem('gyenam_diag_pending'); } catch (e) {}
+        }
         const prevSessionLines = diagLines.slice();
 
         function persistDiagLine(line) {
             diagLines.push(line);
             if (diagLines.length > DIAG_LOG_MAX) diagLines.splice(0, diagLines.length - DIAG_LOG_MAX);
+            if (!logSaveEnabled()) return;
             clearTimeout(diagSaveTimer);
             diagSaveTimer = setTimeout(() => { try { localStorage.setItem(DIAG_LOG_KEY, JSON.stringify(diagLines)); } catch (e) {} }, 800);
         }
@@ -871,12 +888,36 @@
             if (!cur) return;
             const c = getServerCfg();
             cur.textContent = '현재 사용 중: ' + serverLabel(c);
+            const ls = document.getElementById('set-logsave'); if (ls) ls.checked = logSaveEnabled();
             document.querySelectorAll('input[name="upd-src"]').forEach(r => { r.checked = (r.value === getUpdateSource()); });
             if (c) { document.getElementById('srv-host').value = c.host; document.getElementById('srv-port').value = c.port; }
         }
         function setUpdateSource(v) {
             saveTeacherSettings({ updateSource: v });
             showToast(v === 'github' ? '업데이트 확인: GitHub 직접으로 설정했습니다.' : '업데이트 확인: 구글시트 경유로 설정했습니다.');
+        }
+        function setLogSave(on) {
+            saveTeacherSettings({ logSave: !!on });
+            if (on) {
+                try { localStorage.setItem(DIAG_LOG_KEY, JSON.stringify(diagLines)); } catch (e) {}
+                showToast('로그 저장을 켰습니다. 이후 로그가 저장되고 시트에 기록됩니다.');
+            } else {
+                try { localStorage.removeItem(DIAG_LOG_KEY); localStorage.removeItem(DIAG_PEND_KEY); } catch (e) {}
+                showToast('로그 저장을 껐습니다. 앱을 다시 켜면 로그가 지워집니다.');
+            }
+        }
+        async function sendLogToSheetNow() {
+            const msg = document.getElementById('set-logmsg');
+            if (!logSaveEnabled()) { msg.textContent = '먼저 "로그를 저장하고 구글시트에 기록"을 켜주세요.'; return; }
+            if (!LOG_ENDPOINT) { msg.textContent = '기록 서버 주소가 없습니다.'; return; }
+            msg.textContent = '보내는 중...';
+            try {
+                const rec = { t: Date.now(), reason: '수동: 로그 보내기', verdict: '', res: {}, lines: diagLines.slice(-300) };
+                const r = await fetch(LOG_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token: LOG_TOKEN, action: 'diag', device: deviceId, nick: appState.nickname || '', room: appState.roomCode || '', ver: APP_VERSION, rec }) });
+                const j = JSON.parse(await r.text());
+                if (!j || !j.ok) throw new Error('서버 응답 이상');
+                msg.textContent = '✅ 시트의 진단 탭에 기록했습니다. (최근 로그 300줄)';
+            } catch (e) { msg.textContent = '❌ 보내기 실패: ' + (e && e.message ? e.message : e); }
         }
         function readServerInputs() {
             const host = document.getElementById('srv-host').value.trim();
@@ -1408,6 +1449,7 @@
         }
 
         function queueDiagUpload(rec) {
+            if (!logSaveEnabled()) return;
             let pend = [];
             try { pend = JSON.parse(localStorage.getItem(DIAG_PEND_KEY) || '[]'); } catch (e) {}
             pend.push(rec);
@@ -1418,7 +1460,7 @@
 
         let diagFlushing = false;
         async function flushDiagUploads() {
-            if (diagFlushing || !LOG_ENDPOINT) return;
+            if (diagFlushing || !LOG_ENDPOINT || !logSaveEnabled()) return;
             let pend = [];
             try { pend = JSON.parse(localStorage.getItem(DIAG_PEND_KEY) || '[]'); } catch (e) {}
             if (!pend.length) return;
@@ -1444,6 +1486,7 @@
 
         // PeerJS 오류가 났을 때 그 순간의 경로 상태를 자동으로 남김 (기기당 2분에 한 번까지)
         function autoDiagOnNetError(type) {
+            if (!logSaveEnabled()) return;
             const now = Date.now();
             if (now - lastAutoDiagAt < 120000) return;
             lastAutoDiagAt = now;
@@ -1452,7 +1495,7 @@
 
         // 정상일 때의 기준값도 한 번 남겨서 비교할 수 있게 함 (앱 실행당 1회)
         function scheduleBaselineDiag() {
-            if (baselineDiagDone) return;
+            if (baselineDiagDone || !logSaveEnabled()) return;
             baselineDiagDone = true;
             setTimeout(() => runNetDiag('자동: 접속 성공 후 기준값'), 15000 + Math.random() * 60000);
         }
