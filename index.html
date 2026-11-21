@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.25)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.25)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.25';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.26)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.26)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.26';
 -->
 <html lang="ko">
 <head>
@@ -426,11 +426,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.25 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.26 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.25</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.26</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -774,7 +774,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.25';
+        const APP_VERSION = 'v3.26';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1413,6 +1413,26 @@
         let connectAttempt = 0;
         let transferInProgress = false;
 
+        // ---- v3.26 방장 승계(부방장) 상태 ----
+        let roomEpoch = 0;            // 방장 교체 번호(클수록 최신 방장). 0 = 아직 방장 명단을 받은 적 없음
+        let roomHostPeerId = '';      // 현재 방장 노드 ID
+        let deputyDeviceId = '';      // 부방장 기기 ID (표시용)
+        let deputyPeerId = '';        // 부방장 노드 ID (방장이 사라지면 여기로 연결)
+        let succState = 'idle';       // 'idle' | 'probe'(부방장이 옛 방장 확인 중) | 'follow'(게스트가 부방장에게 연결 중)
+        let promoteTimer = null, followTimer = null, followTries = 0, followTargetId = '';
+        let probeConn = null;
+        let doorPeer = null, doorTimer = null, doorTries = 0, claimTimer = null;
+        let pendingFollowers = [];    // 부방장 후보가 '방장이 되기 전에' 따라 들어온 게스트 연결
+        const DOOR_MAX_TRIES = 30;        // 새 방장이 정문 ID(-host)를 다시 차지하려는 최대 시도 횟수(10~20초 간격)
+        let doorWaitCount = 0, doorCountTimer = null;
+        const PROMOTE_WAIT_MS = 5000;     // 부방장: 옛 방장이 이 시간 안에 응답하면 승격하지 않음
+        const FOLLOW_MAX_TRIES = 6;       // 게스트: 부방장 연결 재시도 횟수(넘으면 예전 방식으로 방장 재탐색)
+        const DOOR_WAIT_MAX = 5;          // 새 기기: 정문 ID 무응답 시 자동 재시도 횟수
+        function resetSuccession() {
+            roomEpoch = 0; roomHostPeerId = ''; deputyDeviceId = ''; deputyPeerId = '';
+            succState = 'idle'; followTries = 0; doorWaitCount = 0;
+        }
+
         function setSyncBadge(text) {
             const el = document.getElementById('sync-mode-badge');
             if (el) el.textContent = text;
@@ -1682,8 +1702,23 @@
             return !prev || prev.name !== name;
         }
 
-        function applyRosterFromHost(members) {
+        function applyRosterFromHost(members, info) {
             if (!Array.isArray(members)) return;
+            if (info && typeof info.epoch === 'number') {
+                if (info.epoch < roomEpoch) { appendDebugLog(`옛 방장 번호(${info.epoch}<${roomEpoch}) 명단 무시`); return; }
+                const prevEpoch = roomEpoch;
+                roomEpoch = info.epoch;
+                if (info.hostPeerId) roomHostPeerId = info.hostPeerId;
+                deputyPeerId = info.deputyPeerId || '';
+                const dm = members.find(m => m && m.deputy);
+                deputyDeviceId = dm ? dm.id : '';
+                updateOwnNickLabel();
+                if (prevEpoch > 0 && info.epoch > prevEpoch) {
+                    const hm = members.find(m => m && m.host);
+                    appendDebugLog(`방장 교체 안내 수신: 번호 ${prevEpoch}→${info.epoch}, 새 방장 ${hm ? hm.name : '?'}`);
+                    showToast(`방장이 ${hm ? hm.name : '다른 조원'}님으로 바뀌었습니다.`);
+                }
+            }
             const activeIds = new Set();
             members.forEach(m => {
                 if (!m || m.id === deviceId) return;
@@ -1707,15 +1742,33 @@
             renderPeers();
         }
 
+        // 방장: 부방장이 아직 연결돼 있으면 그대로 두고, 아니면 가장 먼저 들어온 연결 중 게스트를 부방장으로 지정
+        function pickDeputy() {
+            const cur = liveSyncedPeers[deputyDeviceId];
+            if (cur && cur.conn && cur.conn.open) return false;
+            const prevId = deputyDeviceId;
+            deputyDeviceId = ''; deputyPeerId = '';
+            const cand = Object.values(liveSyncedPeers).find(p => p.conn && p.conn.open && p.conn.peer);
+            if (cand) {
+                deputyDeviceId = cand.id; deputyPeerId = cand.conn.peer;
+                appendDebugLog(`부방장 지정: ${cand.name}`);
+            }
+            return prevId !== deputyDeviceId;
+        }
+
         function buildRosterPayload() {
+            if (pickDeputy()) renderPeers();
             const members = [
                 { id: deviceId, name: appState.nickname, host: true },
-                ...Object.values(liveSyncedPeers).map(p => ({ id: p.id, name: p.name }))
+                ...Object.values(liveSyncedPeers).map(p => ({ id: p.id, name: p.name, deputy: p.id === deputyDeviceId }))
             ];
             return {
                 type: 'PEER_ROSTER',
                 senderId: deviceId, appVer: APP_VERSION,
                 roomCode: appState.roomCode,
+                epoch: roomEpoch,
+                hostPeerId: peerNetwork && peerNetwork.id ? peerNetwork.id : roomHostPeerId,
+                deputyPeerId: deputyDeviceId ? deputyPeerId : '',
                 members
             };
         }
@@ -1762,7 +1815,15 @@
                 }
             } else if (msg.type === 'PEER_ROSTER') {
                 if (isRoomHost) return;
-                applyRosterFromHost(msg.members);
+                applyRosterFromHost(msg.members, msg);
+                if (guestHostConn) { guestHostConn._ready = true; }
+                followTries = 0; doorWaitCount = 0;
+            } else if (msg.type === 'HOST_CLAIM') {
+                // 더 높은 번호의 새 방장이 나타났다 → 나는 방장 자리에서 내려와 그쪽 게스트가 된다
+                // (번호가 같을 때는 ID가 작은 쪽을 남겨서, 서로 양보하다 둘 다 사라지는 일이 없게 함)
+                const myId = peerNetwork && peerNetwork.id ? String(peerNetwork.id) : '';
+                if (isRoomHost && typeof msg.epoch === 'number' && msg.hostPeerId &&
+                    (msg.epoch > roomEpoch || (msg.epoch === roomEpoch && String(msg.hostPeerId) < myId))) stepDownTo(msg.hostPeerId, msg.epoch);
             } else if (msg.type === 'FILE_TRANSFER') {
                 handleFileTransferPacket(msg);
             } else if (msg.type === 'FILE_ACK') {
@@ -1991,6 +2052,19 @@
                 clearTimeout(reconnectTimer);
                 reconnectTimer = null;
             }
+            // v3.26: 승계·정문 관련 대기 작업 정리
+            clearTimeout(promoteTimer); promoteTimer = null;
+            clearTimeout(followTimer); followTimer = null;
+            clearTimeout(doorTimer); doorTimer = null;
+            clearInterval(doorCountTimer); doorCountTimer = null;
+            clearTimeout(claimTimer); claimTimer = null;
+            dropPendingFollowers();
+            doorTries = 0;
+            succState = 'idle'; followTries = 0;
+            if (probeConn) { try { probeConn.close(); } catch (e) {} probeConn = null; }
+            if (doorPeer) { const d = doorPeer; doorPeer = null; try { d.destroy(); } catch (e) {} }
+            // 연결을 닫기 전에 명단부터 비움: 닫히는 중에 '남은 조원 중 부방장 다시 뽑기·명단 재전송'이 일어나 혼선이 생기는 것을 막음
+            liveSyncedPeers = {};
             const oldHostConns = hostConnList;
             hostConnList = [];
             oldHostConns.forEach(c => { try { c.close(); } catch (e) {} });
@@ -2011,12 +2085,12 @@
             renderPeers();
         }
 
-        function scheduleReconnect(reason, quick = false) {
+        function scheduleReconnect(reason, quick = false, fixedDelayMs = 0) {
             if (!appState.isConnected || reconnectTimer) return;
             connectAttempt++;
-            const delay = quick
+            const delay = fixedDelayMs > 0 ? fixedDelayMs : (quick
                 ? 300 + Math.floor(Math.random() * 1200)
-                : Math.min(3000 * connectAttempt, 10000);
+                : Math.min(3000 * connectAttempt, 10000));
             appendDebugLog(`${reason} → ${(delay / 1000).toFixed(1)}초 후 재시도 (${connectAttempt}번째)`);
             setSyncBadge('재연결 중...');
             teardownRoomNetwork(); // 낡은 연결을 먼저 정리한 뒤 재시도 예약
@@ -2057,7 +2131,7 @@
             }, delay);
         }
 
-        function setupHostConnection(conn) {
+        function setupHostConnection(conn, skipData = false) {
             appendDebugLog(`게스트 접속 요청 감지: ${conn.peer}`);
             hostConnList.push(conn);
             watchIceState(conn, '방장←게스트', (why) => {
@@ -2065,7 +2139,7 @@
                 try { conn.close(); } catch (e) {}
                 handleHostConnGone(conn);
             });
-            conn.on('data', (data) => handleIncomingNetworkPayload(data, conn));
+            if (!skipData) conn.on('data', (data) => handleIncomingNetworkPayload(data, conn));
             conn.on('close', () => handleHostConnGone(conn));
             conn.on('error', () => handleHostConnGone(conn));
         }
@@ -2094,11 +2168,48 @@
             heartbeatTimer = setInterval(() => {
                 if (!(guestHostConn && guestHostConn.open)) return;
                 if (Date.now() - lastHostMsgAt > HOST_SILENCE_MS) {
-                    scheduleReconnect(`방장 응답 없음(${HOST_SILENCE_MS / 1000}초) → 방장 승격 재탐색`, true);
+                    handleHostLost(`방장 응답 없음(${HOST_SILENCE_MS / 1000}초) → 방장 승격 재탐색`);
                     return;
                 }
                 broadcastPresence('PRESENCE_PING');
             }, HEARTBEAT_INTERVAL_MS);
+        }
+
+        // 게스트가 방장(또는 새 방장)과 맺은 연결에 공통 처리를 붙임
+        function bindGuestConn(guestPeer, conn, opts) {
+            guestHostConn = conn;
+            watchIceState(conn, '게스트→방장', (why) => {
+                if (guestHostConn === conn && succState === 'idle') handleHostLost(`방장과 연결 끊김 판정(${why}) → 방장 승격 재탐색`);
+            });
+            const connectTimer = setTimeout(() => {
+                if (guestHostConn === conn && !conn.open) opts.onTimeout();
+            }, opts.timeoutMs || GUEST_CONNECT_TIMEOUT_MS);
+            const onOpen = () => {
+                clearTimeout(connectTimer);
+                if (guestHostConn !== conn) return;
+                connectAttempt = 0;
+                sigReconnectFails = 0;
+                lastHostMsgAt = Date.now();
+                const wasFollow = succState === 'follow';
+                succState = 'idle';
+                clearTimeout(followTimer); followTimer = null; followTries = 0;
+                appendDebugLog(wasFollow ? `새 방장과 P2P 연결 완료(방장 번호 ${roomEpoch}) · 서버 새 접속 없음` : `방장(#${appState.roomCode})과 P2P 연결 완료`);
+                setSyncBadge('실시간 동기화');
+                broadcastPresence('PRESENCE_PING');
+                startGuestHeartbeat();
+            };
+            if (conn.open) onOpen(); else conn.on('open', onOpen);
+            conn.on('data', (data) => {
+                lastHostMsgAt = Date.now();
+                handleIncomingNetworkPayload(data, conn);
+            });
+            conn.on('error', (cerr) => {
+                appendDebugLog(`방장 연결 오류: ${cerr && cerr.type ? cerr.type : cerr}`);
+            });
+            conn.on('close', () => {
+                clearTimeout(connectTimer);
+                if (guestHostConn === conn && succState === 'idle') handleHostLost('방장 연결 종료 → 방장 승격 재탐색');
+            });
         }
 
         function joinAsGuest(roomCode, hostPeerId) {
@@ -2114,6 +2225,10 @@
                 const type = gerr && gerr.type ? gerr.type : String(gerr);
                 appendDebugLog(`게스트 PeerJS 오류: ${type} (노드 생성 후 ${Date.now() - tGuestNew}ms)`);
                 if (/network|server-error|socket/.test(type)) autoDiagOnNetError(type);
+                // v3.26: 방장 교체 진행 중의 'peer-unavailable' 은 상대 ID가 서버에 없다는 뜻 (재접속 없이 다음 단계로)
+                if (type === 'peer-unavailable' && succState === 'probe') { promoteToHost(); return; }
+                if (type === 'peer-unavailable' && succState === 'follow') { nextFollow(); return; }
+                if (isRoomHost) { appendDebugLog(`방장 노드 경고: ${type}`); return; }   // 승격한 방장은 오류만 기록
                 const connected = !!(guestHostConn && guestHostConn.open);
                 if (type === 'peer-unavailable') {
                     scheduleReconnect('게스트 오류: 방장 ID는 있으나 응답 없음(이전 접속 잔존 가능)');
@@ -2125,8 +2240,13 @@
             });
             guestPeer.on('disconnected', () => {
                 if (peerNetwork !== guestPeer || guestPeer.destroyed) return;
-                appendDebugLog('시그널링 서버와 연결 끊김(게스트 노드)');
-                safeSignalingReconnect(guestPeer, '게스트 노드');
+                appendDebugLog(`시그널링 서버와 연결 끊김(${isRoomHost ? '방장' : '게스트'} 노드)`);
+                safeSignalingReconnect(guestPeer, isRoomHost ? '방장 노드' : '게스트 노드');
+            });
+            // v3.26: 부방장이 방장이 되는 순간부터 이 노드로도 게스트 연결이 들어옴
+            guestPeer.on('connection', (conn) => {
+                if (peerNetwork !== guestPeer) { try { conn.close(); } catch (e) {} return; }
+                if (isRoomHost) setupHostConnection(conn); else holdFollower(conn);
             });
             guestPeer.on('open', () => {
                 if (peerNetwork !== guestPeer) return;
@@ -2135,42 +2255,227 @@
                     reliable: true,
                     metadata: { senderId: deviceId, appVer: APP_VERSION, nickname: appState.nickname }
                 });
-                guestHostConn = conn;
-                watchIceState(conn, '게스트→방장', (why) => {
-                    if (guestHostConn === conn) scheduleReconnect(`방장과 연결 끊김 판정(${why}) → 방장 승격 재탐색`, true);
-                });
-
-                const connectTimer = setTimeout(() => {
-                    if (guestHostConn === conn && !conn.open) {
-                        scheduleReconnect('12초가 지나도 방장과 연결되지 않음(방장 ID 잔존 또는 P2P 차단 의심)');
-                    }
-                }, GUEST_CONNECT_TIMEOUT_MS);
-
-                conn.on('open', () => {
-                    clearTimeout(connectTimer);
-                    if (guestHostConn !== conn) return;
-                    connectAttempt = 0;
-                    sigReconnectFails = 0;
-                    lastHostMsgAt = Date.now();
-                    appendDebugLog(`방장(#${roomCode})과 P2P 연결 완료`);
-                    setSyncBadge('실시간 동기화');
-                    broadcastPresence('PRESENCE_PING');
-                    startGuestHeartbeat();
-                });
-                conn.on('data', (data) => {
-                    lastHostMsgAt = Date.now();
-                    handleIncomingNetworkPayload(data, conn);
-                });
-                conn.on('error', (cerr) => {
-                    appendDebugLog(`방장 연결 오류: ${cerr && cerr.type ? cerr.type : cerr}`);
-                });
-                conn.on('close', () => {
-                    clearTimeout(connectTimer);
-                    if (guestHostConn === conn) {
-                        scheduleReconnect('방장 연결 종료 → 방장 승격 재탐색', true);
-                    }
-                });
+                bindGuestConn(guestPeer, conn, { timeoutMs: GUEST_CONNECT_TIMEOUT_MS, onTimeout: doorWaitOrReconnect });
             });
+        }
+
+        // ==========================================
+        // v3.26 방장 승계(부방장): 방장이 사라지면 이미 서버에 접속해 있는 부방장에게 그대로 이어서 연결 (새 서버 접속 없음)
+        // ==========================================
+        function metaForConn() { return { senderId: deviceId, appVer: APP_VERSION, nickname: appState.nickname }; }
+
+        function giveUpSuccession(why) {
+            succState = 'idle';
+            clearTimeout(promoteTimer); promoteTimer = null;
+            clearTimeout(followTimer); followTimer = null;
+            scheduleReconnect(`${why} → 방장 재탐색(예전 방식)`, true);
+        }
+
+        // 게스트: 방장과의 연결이 끊김/무응답일 때 호출
+        function handleHostLost(reason) {
+            if (!appState.isConnected || isRoomHost || succState !== 'idle') return;
+            const p = peerNetwork;
+            const usable = !!(p && !p.destroyed && !p.disconnected && p.open);
+            if (!(roomEpoch > 0 && deputyPeerId && usable)) { scheduleReconnect(reason, true); return; }
+            const iAmDeputy = deputyDeviceId === deviceId;
+            appendDebugLog(`${reason} → ${iAmDeputy ? '내가 부방장: 옛 방장 확인 후 승격' : '부방장에게 이어서 연결'} (방장 번호 ${roomEpoch})`);
+            stopHeartbeat();
+            if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
+            setSyncBadge('방장 교체 중...');
+            if (iAmDeputy) startDeputyProbe(); else startFollow();
+        }
+
+        // ---- 일반 게스트: 부방장에게 연결 ----
+        function startFollow() {
+            succState = 'follow'; followTries = 0; followTargetId = deputyPeerId;
+            tryFollow();
+        }
+        function tryFollow() {
+            clearTimeout(followTimer); followTimer = null;
+            if (succState !== 'follow' || !appState.isConnected) return;
+            const p = peerNetwork;
+            if (!p || p.destroyed || p.disconnected || !p.open) { giveUpSuccession('내 서버 연결이 불안정'); return; }
+            if (followTries >= FOLLOW_MAX_TRIES) { giveUpSuccession('부방장에게 연결 실패'); return; }
+            followTries++;
+            appendDebugLog(`부방장 연결 시도 ${followTries}/${FOLLOW_MAX_TRIES}`);
+            if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
+            let conn;
+            try { conn = p.connect(followTargetId, { reliable: true, metadata: metaForConn() }); }
+            catch (e) { nextFollow(); return; }
+            bindGuestConn(p, conn, { timeoutMs: 6000, onTimeout: nextFollow });
+        }
+        function nextFollow() {
+            if (succState !== 'follow') return;
+            if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
+            clearTimeout(followTimer);
+            followTimer = setTimeout(tryFollow, 1500 + Math.random() * 2500);
+        }
+
+        // ---- 부방장: 옛 방장이 정말 없는지 잠깐 확인한 뒤 방장으로 승격 ----
+        function startDeputyProbe() {
+            succState = 'probe';
+            const p = peerNetwork;
+            appendDebugLog(`부방장: 옛 방장 확인 중 (${PROMOTE_WAIT_MS / 1000}초 안에 응답이 없으면 방장으로 승격)`);
+            if (roomHostPeerId && roomHostPeerId !== p.id) {
+                try {
+                    const c = p.connect(roomHostPeerId, { reliable: true, metadata: metaForConn() });
+                    probeConn = c;
+                    c.on('open', () => {
+                        if (succState !== 'probe' || probeConn !== c) return;
+                        appendDebugLog('옛 방장이 아직 살아 있음 → 승격 취소, 게스트로 복귀');
+                        probeConn = null; succState = 'idle';
+                        clearTimeout(promoteTimer); promoteTimer = null;
+                        dropPendingFollowers();
+                        bindGuestConn(p, c, { timeoutMs: GUEST_CONNECT_TIMEOUT_MS, onTimeout: () => handleHostLost('복귀한 방장 연결 실패') });
+                    });
+                } catch (e) {}
+            }
+            clearTimeout(promoteTimer);
+            promoteTimer = setTimeout(promoteToHost, PROMOTE_WAIT_MS);
+        }
+
+        // 방장이 되기 전에 따라 들어온 게스트 연결을 잡아 둠 (그 사이 온 메시지도 보관)
+        function holdFollower(conn) {
+            if (pendingFollowers.length >= 200) { try { conn.close(); } catch (e) {} return; }
+            const item = { conn, buf: [], t: null };
+            conn.on('data', (d) => { if (isRoomHost) handleIncomingNetworkPayload(d, conn); else item.buf.push(d); });
+            item.t = setTimeout(() => {
+                if (isRoomHost) return;
+                pendingFollowers = pendingFollowers.filter(x => x !== item);
+                try { conn.close(); } catch (e) {}
+            }, 30000);
+            pendingFollowers.push(item);
+            appendDebugLog(`방장이 되기 전 접속 대기 연결 보관: ${conn.peer}`);
+        }
+        function dropPendingFollowers() {
+            const list = pendingFollowers;
+            pendingFollowers = [];
+            list.forEach(it => { clearTimeout(it.t); try { it.conn.close(); } catch (e) {} });
+        }
+
+        function promoteToHost() {
+            clearTimeout(promoteTimer); promoteTimer = null;
+            if (succState !== 'probe' || !appState.isConnected) return;
+            const p = peerNetwork;
+            const oldHostId = roomHostPeerId;
+            if (probeConn) { const c = probeConn; probeConn = null; try { c.close(); } catch (e) {} }
+            succState = 'idle';
+            if (!p || p.destroyed || p.disconnected || !p.open) { scheduleReconnect('승격하려 했으나 내 서버 연결이 불안정', true); return; }
+            if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
+            stopHeartbeat();
+            isRoomHost = true;
+            roomEpoch += 1;
+            roomHostPeerId = p.id;
+            deputyDeviceId = ''; deputyPeerId = '';
+            connectAttempt = 0;
+            Object.values(liveSyncedPeers).forEach(q => {
+                if (q.isHost) { delete liveSyncedPeers[q.id]; return; }
+                q.conn = null; q.lastSeen = Date.now();
+            });
+            appendDebugLog(`★ 내가 새 방장이 됨 (방장 번호 ${roomEpoch}) · 서버 새 접속 없이 승격`);
+            const held = pendingFollowers; pendingFollowers = [];
+            held.forEach(it => {
+                clearTimeout(it.t);
+                setupHostConnection(it.conn, true);
+                it.buf.forEach(d => handleIncomingNetworkPayload(d, it.conn));
+            });
+            setSyncBadge('실시간 동기화');
+            updateOwnNickLabel();
+            renderPeers();
+            startHostHeartbeat();
+            broadcastRosterFromHost();
+            showToast('방장이 바뀌어 내가 새 방장이 되었습니다.');
+            claimDoor();
+            notifyOldHost(oldHostId, 0);
+        }
+
+        // 새 방장 → 옛 방장 ID(-host 포함)에 접속해 보고, 거기에 (번호가 낮은) 방장이 있으면 "방장이 바뀌었다"고 알려서 게스트로 내려오게 함
+        // (옛 방장이 잠깐 멈췄다 돌아온 경우, 또는 비어 있던 정문 ID를 새로 온 기기가 먼저 차지한 경우를 정리)
+        function notifyOldHost(oldId, tries) {
+            clearTimeout(claimTimer); claimTimer = null;
+            const p = peerNetwork;
+            if (!isRoomHost || !oldId || !p || p.destroyed || oldId === p.id || tries >= 18) return;
+            if (doorPeer && doorPeer.open && doorPeer.id === oldId) return;   // 정문 ID를 내가 이미 차지했으면 알릴 필요 없음
+            let done = false;
+            try {
+                const c = p.connect(oldId, { reliable: true, metadata: metaForConn() });
+                c.on('open', () => {
+                    done = true;
+                    clearTimeout(claimTimer); claimTimer = null;
+                    try {
+                        c.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: p.id });
+                        appendDebugLog('옛 방장 자리에 다른 방장이 있어 방장 교체를 알림');
+                    } catch (e) {}
+                    setTimeout(() => { try { c.close(); } catch (e) {} }, 1500);
+                });
+                setTimeout(() => { if (!c.open) { try { c.close(); } catch (e) {} } }, 9000);   // 응답 없는 시도는 정리
+            } catch (e) {}
+            if (!done) claimTimer = setTimeout(() => notifyOldHost(oldId, tries + 1), 10000);
+        }
+
+        // 옛 방장: 더 높은 번호의 방장이 있다는 알림을 받으면 게스트로 내려옴
+        function stepDownTo(newHostId, epoch) {
+            if (!appState.isConnected) return;
+            const room = appState.roomCode;
+            appendDebugLog(`더 높은 방장 번호(${epoch}>${roomEpoch}) 확인 → 방장에서 내려와 새 방장에게 연결`);
+            showToast('방장이 다른 조원으로 바뀌어 게스트로 전환합니다.');
+            teardownRoomNetwork();
+            activeRoomId = room;
+            roomEpoch = epoch;
+            setSyncBadge('연결 탐색 중...');
+            joinAsGuest(room, newHostId);
+        }
+
+        // 새 방장: 정문 ID(-host)를 두 번째 노드로 다시 차지해서 새로 들어오는 기기가 바로 찾을 수 있게 함
+        function claimDoor() {
+            clearTimeout(doorTimer); doorTimer = null;
+            if (!isRoomHost || !appState.isConnected || doorPeer) return;
+            const doorId = `${ROOM_ID_PREFIX}${appState.roomCode}-host`;
+            if (peerNetwork && peerNetwork.id === doorId) return;
+            if (doorTries >= DOOR_MAX_TRIES) { appendDebugLog('정문 ID 재점유를 포기(시도 횟수 초과): 이미 있는 조원들은 영향 없음'); return; }
+            doorTries++;
+            const d = new Peer(doorId, peerOpts());
+            doorPeer = d;
+            const retry = (ms) => {
+                if (doorPeer === d) doorPeer = null;
+                try { d.destroy(); } catch (e) {}
+                clearTimeout(doorTimer);
+                doorTimer = setTimeout(claimDoor, ms);
+            };
+            d.on('open', () => { if (doorPeer === d) { appendDebugLog(`정문 ID 확보 (${doorId}) · ${doorTries}번째 시도`); doorTries = 0; } });
+            d.on('connection', (conn) => {
+                if (doorPeer === d && isRoomHost) setupHostConnection(conn); else { try { conn.close(); } catch (e) {} }
+            });
+            d.on('disconnected', () => { if (doorPeer === d && !d.destroyed) { appendDebugLog('정문 노드: 서버 연결 끊김 → 잠시 뒤 다시 시도'); retry(15000 + Math.random() * 15000); } });
+            d.on('error', (err) => {
+                if (doorPeer !== d) return;
+                const type = err && err.type ? err.type : String(err);
+                if (type === 'unavailable-id') appendDebugLog(`정문 ID 아직 사용 중 → 다시 시도 (${doorTries}/${DOOR_MAX_TRIES})`);
+                else appendDebugLog(`정문 노드 오류: ${type}`);
+                retry(10000 + Math.random() * 10000);
+            });
+        }
+
+        // 새로 들어오는 기기: 정문 ID에서 응답이 없을 때 안내 + 자동 재접속
+        function doorWaitOrReconnect() {
+            if (doorWaitCount >= DOOR_WAIT_MAX) {
+                showToast('방장 연결이 계속 안 됩니다. 방 나가기 후 다시 접속하거나, 조원 모두가 같은 새 코드를 정해 접속해 보세요.', 'warning');
+                scheduleReconnect('12초가 지나도 방장과 연결되지 않음(방장 ID 잔존 또는 P2P 차단 의심)');
+                return;
+            }
+            doorWaitCount++;
+            const delaySec = 10 + Math.floor(Math.random() * 11);
+            appendDebugLog(`정문 ID 무응답 → ${delaySec}초 뒤 자동 재접속 (${doorWaitCount}/${DOOR_WAIT_MAX})`);
+            scheduleReconnect('방장 ID는 있으나 응답 없음(이전 접속 잔존 가능)', false, delaySec * 1000);
+            let left = delaySec;
+            const show = () => showToast(`서버가 잠시 혼잡합니다. ${left}초 후 자동으로 다시 접속합니다.` + (doorWaitCount >= 2 ? ' 계속 안 되면 조원 모두가 같은 새 코드를 정해 다시 접속하세요.' : ''), 'warning');
+            show();
+            clearInterval(doorCountTimer);
+            doorCountTimer = setInterval(() => {
+                left--;
+                if (left <= 0) { clearInterval(doorCountTimer); doorCountTimer = null; return; }
+                show();
+            }, 1000);
         }
 
         function guestLinkAlive() {
@@ -2196,7 +2501,7 @@
             broadcastPresence('PRESENCE_PING');
             setTimeout(() => {
                 if (appState.isConnected && !isRoomHost && lastHostMsgAt < t0) {
-                    scheduleReconnect('복귀 후 방장 응답 없음 → 재탐색', true);
+                    handleHostLost('복귀 후 방장 응답 없음 → 재탐색');
                 }
             }, 5000);
         }
@@ -2215,6 +2520,9 @@
                 return;
             }
 
+            // v3.26: 처음부터 다시 구성(예전 방식) → 방장 번호는 새로 시작하되, 직접 방장이 되면 이전 번호+1 로 올림
+            const prevEpoch = roomEpoch;
+            roomEpoch = 0; roomHostPeerId = ''; deputyDeviceId = ''; deputyPeerId = '';
             teardownRoomNetwork();
             activeRoomId = roomCode;
             const hostPeerId = `${ROOM_ID_PREFIX}${roomCode}-host`;
@@ -2235,10 +2543,11 @@
                 }
                 peerNetwork = hostCandidate;
                 isRoomHost = true;
+                roomEpoch = prevEpoch + 1; roomHostPeerId = hostPeerId; deputyDeviceId = ''; deputyPeerId = '';
                 updateOwnNickLabel();
                 connectAttempt = 0;
                 sigReconnectFails = 0;
-                appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId}) · 시그널링 서버 응답 ${Date.now() - tHostNew}ms`);
+                appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId}) · 방장 번호 ${roomEpoch} · 시그널링 서버 응답 ${Date.now() - tHostNew}ms`);
                 scheduleBaselineDiag();
                 setSyncBadge('실시간 동기화');
                 startHostHeartbeat();
@@ -2596,11 +2905,11 @@
             let line;
             if (isRoomHost) {
                 const open = hostConnList.filter(c => c && c.open).length;
-                line = `방장 | 서버연결=${sig} | 열린 조원 연결=${open} | 명단=${Object.keys(liveSyncedPeers).length}명`;
+                line = `방장(번호 ${roomEpoch}) | 서버연결=${sig} | 열린 조원 연결=${open} | 명단=${Object.keys(liveSyncedPeers).length}명`;
             } else {
                 const alive = !!(guestHostConn && guestHostConn.open);
                 const quiet = alive && lastHostMsgAt ? Math.round((Date.now() - lastHostMsgAt) / 1000) : -1;
-                line = `게스트 | 서버연결=${sig} | 방장연결=${alive ? '열림' : '없음'}${quiet >= 0 ? ` | 방장 무응답 ${quiet}초` : ''}`;
+                line = `게스트(번호 ${roomEpoch}${deputyDeviceId === deviceId ? ', 부방장' : ''}) | 서버연결=${sig} | 방장연결=${alive ? '열림' : '없음'}${quiet >= 0 ? ` | 방장 무응답 ${quiet}초` : ''}`;
             }
             const vis = document.hidden ? '숨김' : '보임';
             const key = `${line.replace(/무응답 \d+초/, '')}|${vis}|${describeNetType()}|${navigator.onLine}`;
@@ -2811,6 +3120,7 @@
                 appState.roomCode = codeInput;
                 appState.keepSession = keepCheck;
                 appState.isConnected = true;
+                resetSuccession();
             }
 
             syncRoomUI();
@@ -2837,12 +3147,13 @@
             }
         }
 
-        // 방장 표시: 이름 끝에 * 를 붙여 화면에만 보여 줌 (전송 기록·명단에 저장되는 닉네임은 그대로)
-        const HOST_MARK = '*';
-        function peerLabel(p) { return p.name + (p.isHost ? HOST_MARK : ''); }
+        // 방장/부방장 표시: 이름 끝에 방장은 ** , 부방장은 * 를 붙여 화면에만 보여 줌 (전송 기록·명단에 저장되는 닉네임은 그대로)
+        const HOST_MARK = '**';
+        const DEPUTY_MARK = '*';
+        function peerLabel(p) { return p.name + (p.isHost ? HOST_MARK : (deputyDeviceId && p.id === deputyDeviceId ? DEPUTY_MARK : '')); }
         function updateOwnNickLabel() {
             const el = document.getElementById('display-nickname');
-            if (el) el.textContent = (appState.nickname || '') + (isRoomHost ? HOST_MARK : '');
+            if (el) el.textContent = (appState.nickname || '') + (isRoomHost ? HOST_MARK : (deputyDeviceId === deviceId ? DEPUTY_MARK : ''));
         }
 
         // 가로 화면에서만: 상단의 방코드·이름을 누르면 '이름/코드 변경' 창 열기
@@ -2922,6 +3233,7 @@
             closeLeaveConfirmModal();
             broadcastPresence('PRESENCE_LEAVE');
             teardownRoomNetwork();
+            resetSuccession();
             stopBackgroundService();
             appState.isConnected = false;
             liveSyncedPeers = {};
