@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.22)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.22)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.22';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.23)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.23)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.23';
 -->
 <html lang="ko">
 <head>
@@ -426,13 +426,15 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.22 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.23 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.22</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.23</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
+                <span class="text-slate-600">|</span>
+                <span id="footer-server-text" class="text-slate-300">서버: 기본</span>
             </div>
             <div class="flex items-center justify-end gap-1.5 ml-auto">
             <button onclick="checkServerStatus()" id="btn-check-server" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-emerald-600 text-slate-200 hover:text-white font-bold transition active:scale-95">
@@ -772,7 +774,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.22';
+        const APP_VERSION = 'v3.23';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -897,6 +899,14 @@
             return { debug: 0, host: c.host, port: Number(c.port) || 9000, path: c.path || '/', secure: !!c.secure };
         }
         function serverLabel(c) { return c ? `${c.host}:${c.port}` : `기본 서버(${DEFAULT_PEER_HOST})`; }
+        // 하단 표시: 기본 서버(0.peerjs.com) 사용 중이면 '서버: 기본', 학교 노트북 서버면 '서버: 학교'
+        function updateServerBadge() {
+            const el = document.getElementById('footer-server-text');
+            if (!el) return;
+            const school = !!getServerCfg();
+            el.textContent = school ? '서버: 학교' : '서버: 기본';
+            el.className = school ? 'text-amber-300' : 'text-slate-300';
+        }
         function serverCheckUrl() {
             const c = getServerCfg();
             return c ? `${c.secure ? 'https' : 'http'}://${c.host}:${c.port}/` : `https://${DEFAULT_PEER_HOST}/`;
@@ -928,6 +938,7 @@
         function applyServerCfg(cfg, why) {
             try { localStorage.setItem(SERVER_CFG_KEY, JSON.stringify(cfg || { rev: 0 })); } catch (e) {}
             appendDebugLog(`PeerJS 서버 변경 → ${serverLabel(getServerCfg())} (${why})`);
+            updateServerBadge();
             if (appState.isConnected && !updateLocked) {
                 teardownRoomNetwork();
                 setSyncBadge('서버 변경 중...');
@@ -962,6 +973,22 @@
                 const ms = Date.now() - t0;
                 msg = `서버 정상: 접속됩니다 (${ms}ms)`;
                 if (body && !/peerjs/i.test(body)) { msg = `서버가 응답했지만 PeerJS 서버가 아닌 것 같습니다 (${ms}ms)`; type = 'warning'; }
+                else {
+                    // 이어서 웹소켓(실제 방 연결에 쓰는 통로)도 시험: 주소 접속은 되는데 웹소켓만 막히는 경우를 구분
+                    if (label) label.textContent = '웹소켓 확인 중...';
+                    const cfg = getServerCfg();
+                    const tw = Date.now();
+                    const w = await testServerCfg(cfg, 7000);
+                    const wms = Date.now() - tw;
+                    if (w.ok) {
+                        msg = `서버 정상: 접속됩니다 (주소 ${ms}ms · 웹소켓 ${wms}ms)`;
+                    } else {
+                        type = 'warning';
+                        msg = cfg
+                            ? `서버 주소는 응답하지만 웹소켓 연결이 안 됩니다(${w.msg}). 학교 노트북 서버 프로그램이 켜져 있는지, 방화벽을 확인하세요.`
+                            : `서버 주소는 응답하지만 웹소켓 연결이 안 됩니다(${w.msg}). 접속 제한(약 15분) 또는 학교 네트워크 차단일 수 있습니다. 잠시 뒤 다시 확인하세요.`;
+                    }
+                }
             } catch (e) {
                 type = 'warning';
                 msg = navigator.onLine
@@ -985,6 +1012,7 @@
             const cur = document.getElementById('srv-current');
             if (!cur) return;
             const c = getServerCfg();
+            updateServerBadge();
             cur.textContent = '현재 사용 중: ' + serverLabel(c);
             const ls = document.getElementById('set-logsave'); if (ls) ls.checked = logSaveEnabled();
             document.querySelectorAll('input[name="upd-src"]').forEach(r => { r.checked = (r.value === getUpdateSource()); });
@@ -4199,6 +4227,7 @@
             initPageLeaveNotifier();
             setupScreenLockAutoTerminate();
             startRoomStatusLog();
+            updateServerBadge();
             setupIdleAutoDisconnect();
             initNativeBridge();
 
