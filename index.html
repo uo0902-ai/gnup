@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.21)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.21)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.21';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.22)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.22)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.22';
 -->
 <html lang="ko">
 <head>
@@ -123,9 +123,13 @@
                 border-radius: 0 0 1.25rem 1.25rem !important;
             }
             #main-screen > header > div { margin: 0 !important; }
-            #main-screen > header > div:nth-child(1) { flex: 0 0 auto; gap: .75rem; }
-            #main-screen > header > div:nth-child(2) { flex: 1 1 auto; min-width: 0; }
-            #main-screen > header > div:nth-child(3) { flex: 0 0 auto; flex-direction: column; align-items: flex-start; gap: .125rem; }
+            /* 순서: 앱 제목 → 앱 상태 정보 → 방코드/이름(가운데, 늘어남) → 방 나가기(맨 오른쪽) */
+            #main-screen > header > div:nth-child(1) { display: contents; }
+            #main-screen > header > div:nth-child(1) > div:nth-child(1) { order: 1; flex: 0 0 auto; }
+            #main-screen > header > div:nth-child(3) { order: 2; flex: 0 0 auto; flex-direction: column; align-items: flex-start; gap: .125rem; white-space: nowrap; }
+            #main-screen > header > div:nth-child(2) { order: 3; flex: 1 1 auto; min-width: 0; }
+            #main-screen > header > div:nth-child(1) > div:nth-child(2) { order: 4; flex: 0 0 auto; }
+            .header-profile-tap { cursor: pointer; }
             #land-main {
                 display: flex !important;
                 flex-direction: row !important;
@@ -268,7 +272,7 @@
 
                 <!-- 접속 정보 표시 및 실시간 '이름/코드 변경' 버튼 -->
                 <div class="flex items-center justify-between bg-indigo-950/35 backdrop-blur-xs rounded-2xl px-3 py-2 border border-white/10 gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
+                    <div id="header-profile-tap" onclick="onHeaderProfileTap()" class="header-profile-tap flex items-center gap-2 min-w-0">
                         <span class="bg-white/20 px-2.5 py-1 rounded-xl text-xs font-extrabold tracking-wider flex items-center gap-1 shrink-0">
                             <i data-lucide="hash" class="w-3 h-3 text-amber-300"></i>
                             <span id="display-room-code">1234</span>
@@ -422,11 +426,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.21 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.22 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.21</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.22</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
             </div>
@@ -768,7 +772,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.21';
+        const APP_VERSION = 'v3.22';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1661,6 +1665,7 @@
                 liveSyncedPeers[m.id] = {
                     id: m.id,
                     name: m.name,
+                    isHost: !!m.host,
                     signal: '실시간 연결됨',
                     selected: prev ? prev.selected : true,
                     avatarColor: 'bg-teal-600',
@@ -1676,7 +1681,7 @@
 
         function buildRosterPayload() {
             const members = [
-                { id: deviceId, name: appState.nickname },
+                { id: deviceId, name: appState.nickname, host: true },
                 ...Object.values(liveSyncedPeers).map(p => ({ id: p.id, name: p.name }))
             ];
             return {
@@ -1972,6 +1977,7 @@
                 try { p.destroy(); } catch (e) {}
             }
             isRoomHost = false;
+            updateOwnNickLabel();
             activeRoomId = null;
             liveSyncedPeers = {};
             renderPeers();
@@ -2070,6 +2076,7 @@
         function joinAsGuest(roomCode, hostPeerId) {
             if (activeRoomId !== roomCode) return;
             isRoomHost = false;
+            updateOwnNickLabel();
             const tGuestNew = Date.now();
             const guestPeer = new Peer(peerOpts());
             peerNetwork = guestPeer;
@@ -2200,6 +2207,7 @@
                 }
                 peerNetwork = hostCandidate;
                 isRoomHost = true;
+                updateOwnNickLabel();
                 connectAttempt = 0;
                 sigReconnectFails = 0;
                 appendDebugLog(`방 #${roomCode} 방장 노드 생성 성공 (${hostPeerId}) · 시그널링 서버 응답 ${Date.now() - tHostNew}ms`);
@@ -2546,7 +2554,53 @@
             }
         }
 
+        // ---- v3.22 로그 보강: 방장/게스트의 서버 연결 상태를 주기적으로(변할 때, 최대 5분마다) 기록 ----
+        let lastStatusKey = '', lastStatusAt = 0, statusLogTimer = null;
+        function describeNetType() {
+            const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            return c ? `${c.type || '?'}/${c.effectiveType || '?'}` : '?';
+        }
+        function logRoomStatus(force) {
+            if (!appState.isConnected) return;
+            const p = peerNetwork;
+            let sig = '없음';
+            if (p) sig = p.destroyed ? '파기됨' : (p.disconnected ? '끊김' : (p.open ? '열림' : '연결중'));
+            let line;
+            if (isRoomHost) {
+                const open = hostConnList.filter(c => c && c.open).length;
+                line = `방장 | 서버연결=${sig} | 열린 조원 연결=${open} | 명단=${Object.keys(liveSyncedPeers).length}명`;
+            } else {
+                const alive = !!(guestHostConn && guestHostConn.open);
+                const quiet = alive && lastHostMsgAt ? Math.round((Date.now() - lastHostMsgAt) / 1000) : -1;
+                line = `게스트 | 서버연결=${sig} | 방장연결=${alive ? '열림' : '없음'}${quiet >= 0 ? ` | 방장 무응답 ${quiet}초` : ''}`;
+            }
+            const vis = document.hidden ? '숨김' : '보임';
+            const key = `${line.replace(/무응답 \d+초/, '')}|${vis}|${describeNetType()}|${navigator.onLine}`;
+            const now = Date.now();
+            if (!force && key === lastStatusKey && now - lastStatusAt < 300000) return;
+            lastStatusKey = key; lastStatusAt = now;
+            appendDebugLog(`상태점검: ${line} | 화면=${vis} | 네트워크=${describeNetType()} | online=${navigator.onLine}`);
+        }
+        function startRoomStatusLog() {
+            clearInterval(statusLogTimer);
+            statusLogTimer = setInterval(() => logRoomStatus(false), 20000);
+            try {
+                const c = navigator.connection;
+                if (c && c.addEventListener) {
+                    let prevType = describeNetType();
+                    c.addEventListener('change', () => {
+                        const now = describeNetType();
+                        if (appState.isConnected) appendDebugLog(`네트워크 전환 감지: ${prevType} → ${now}`);
+                        prevType = now;
+                        setTimeout(() => logRoomStatus(true), 1500);
+                    });
+                }
+            } catch (e) {}
+            window.addEventListener('offline', () => { if (appState.isConnected) appendDebugLog('네트워크 끊김 감지(offline)'); });
+        }
+
         function onAppHidden() {
+            if (appState.isConnected) appendDebugLog(`앱이 백그라운드로 이동(${isRoomHost ? '방장' : '게스트'})`);
             hiddenAt = Date.now();
             if (!localStorage.getItem(LOCK_TIMESTAMP_KEY)) {
                 localStorage.setItem(LOCK_TIMESTAMP_KEY, String(Date.now()));
@@ -2755,8 +2809,23 @@
             }
         }
 
+        // 방장 표시: 이름 끝에 (·) 를 붙여 화면에만 보여 줌 (전송 기록·명단에 저장되는 닉네임은 그대로)
+        const HOST_MARK = '(·)';
+        function peerLabel(p) { return p.name + (p.isHost ? HOST_MARK : ''); }
+        function updateOwnNickLabel() {
+            const el = document.getElementById('display-nickname');
+            if (el) el.textContent = (appState.nickname || '') + (isRoomHost ? HOST_MARK : '');
+        }
+
+        // 가로 화면에서만: 상단의 방코드·이름을 누르면 '이름/코드 변경' 창 열기
+        function onHeaderProfileTap() {
+            if (window.matchMedia && window.matchMedia('(orientation: landscape) and (min-width: 700px)').matches) {
+                openEditProfileModal();
+            }
+        }
+
         function syncRoomUI() {
-            document.getElementById('display-nickname').textContent = appState.nickname;
+            updateOwnNickLabel();
             document.getElementById('display-room-code').textContent = appState.roomCode;
             document.getElementById('radar-code-label').textContent = `#${appState.roomCode}`;
         }
@@ -3049,7 +3118,7 @@
                             <i data-lucide="check" class="w-2.5 h-2.5"></i>
                         </span>
                     </div>
-                    <span class="text-xs font-extrabold text-slate-800 truncate w-full text-center">${escapeHtml(peer.name)}</span>
+                    <span class="text-xs font-extrabold text-slate-800 truncate w-full text-center">${escapeHtml(peerLabel(peer))}</span>
                     <span class="text-[9px] text-slate-500 truncate w-full text-center">${escapeHtml(peer.signal)}</span>
                 `;
                 container.appendChild(card);
@@ -3070,7 +3139,7 @@
                 label.textContent = `전체 조원 (${selectedPeers.length}명)에게 전송`;
                 label.className = 'text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg';
             } else {
-                const names = selectedPeers.map(p => p.name).join(', ');
+                const names = selectedPeers.map(p => peerLabel(p)).join(', ');
                 label.textContent = `${names}에게 전송`;
                 label.className = 'text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg';
             }
@@ -4129,6 +4198,7 @@
             initTransferLog();
             initPageLeaveNotifier();
             setupScreenLockAutoTerminate();
+            startRoomStatusLog();
             setupIdleAutoDisconnect();
             initNativeBridge();
 
