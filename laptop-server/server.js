@@ -1,11 +1,15 @@
 // 계남중 파일업다운 - 학교 노트북용 PeerJS 연결 중계 서버
 // 파일과 메시지는 이 서버를 거치지 않고 기기끼리 직접 오갑니다. 이 서버는 '서로 찾기'만 도와줍니다.
 // v3.23: 상태 화면 보강 (현재 접속 대수, 방별 방장, 최근 1분 새 접속, 최근 기록)
+// v3.24: 끊어진 옛 방장 ID를 더 빨리 풀도록 alive_timeout 단축 (기본 60초 → 30초)
 const os = require('os');
 const { PeerServer } = require('peer');
 
 const PORT = parseInt(process.env.PORT || '9000', 10);
 const RENDER_MS = parseInt(process.env.RENDER_MS || '2000', 10);   // 화면 새로고침 간격
+// 기기가 신호를 30초 넘게 안 보내면 '죽은 접속'으로 보고 ID를 풀어 줍니다. (PeerJS 기본값은 60초)
+// 너무 짧으면 화면이 꺼진 기기가 잘못 끊길 수 있으니 시험 후 조정하세요. 예) set ALIVE_TIMEOUT=20000
+const ALIVE_TIMEOUT = Math.max(10000, parseInt(process.env.ALIVE_TIMEOUT || '30000', 10));
 const HOST_ID_RE = /^gyenam-ms-room2-(\d{4})-host$/;               // 방장 노드 ID (방 코드가 들어 있음)
 
 const server = PeerServer({
@@ -13,6 +17,7 @@ const server = PeerServer({
   path: '/',
   key: 'peerjs',
   concurrent_limit: 5000,
+  alive_timeout: ALIVE_TIMEOUT,
   allow_discovery: false,
   corsOptions: { origin: true }
 });
@@ -79,7 +84,7 @@ function render() {
   const L = [];
   L.push('==================================================');
   L.push(` 계남중 파일업다운 · 노트북 서버 (켜진 지 ${dur(now - startedAt)})`);
-  L.push(` 포트: ${PORT}   ·   지금 시각 ${hhmmss(now)}`);
+  L.push(` 포트: ${PORT}   ·   지금 시각 ${hhmmss(now)}   ·   끊김 판정 ${Math.round(ALIVE_TIMEOUT / 1000)}초`);
   L.push(' 앱 [교사 설정]에 입력할 IP 주소 (학교 와이파이/학내망 주소):');
   addressLines().forEach(l => L.push(l));
   L.push('--------------------------------------------------');

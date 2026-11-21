@@ -1,6 +1,6 @@
 {
   "name": "gyenam-fileupdown",
-  "version": "3.23.0",
+  "version": "3.24.0",
   "private": true,
   "description": "계남중 파일업다운 안드로이드 앱 (Capacitor)",
   "dependencies": {

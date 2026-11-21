@@ -59,7 +59,7 @@ function doGet(e) {
     return json_({ ok: true, epoch: Number(P.getProperty('RESET_EPOCH') || 0), server: srv });
   }
   if (e && e.parameter && e.parameter.a === 'update') return json_(updateInfo_());
-  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.23 · 선생님께 전송 · 전체 초기화 · 경로 진단 · 업데이트 정보 · 서버 지정 지원)');
+  return out_('계남중 파일업다운 기록 수신 준비됨 (v3.24 · 선생님께 전송 · 전체 초기화 · 경로 진단 · 업데이트 정보 · 서버 지정 지원)');
 }
 
 var DIAG_HEAD = ['서버시간','기기측 시간','기기ID','닉네임','방코드','앱버전','사유','판정','공인IP','내부IP','회선','구글(ms)','기록서버(ms)','PeerJS HTTPS(ms)','웹소켓 열림(ms)','웹소켓 응답(ms)','웹소켓 성공','STUN(ms)','직전 로그'];

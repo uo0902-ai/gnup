@@ -17,6 +17,12 @@
     - 방장이 접속해 있는 방 목록(#방코드)
     - 최근 접속·퇴장 기록 12줄
    (게스트는 방 코드가 서버에 전달되지 않아서 방별 인원은 알 수 없고 전체 대수만 보입니다.)
+   맨 위 '끊김 판정 30초'는, 앱이 30초 넘게 신호를 안 보내면 서버가 그 접속을 끊어진 것으로
+   보고 방장 자리(ID)를 풀어 준다는 뜻입니다. (옛 방장이 멈춘 채 자리를 잡고 있는 문제 완화)
+   시간을 바꾸려면 CMD에서 시작.bat 대신 아래처럼 실행합니다. (최소 10초)
+     cd 서버폴더
+     set ALIVE_TIMEOUT=20000
+     node server.js
 
 3. 윈도우 방화벽 열기 (처음 한 번만, 관리자 권한 CMD)
    netsh advfirewall firewall add rule name="gyenam-peer-9000" dir=in action=allow protocol=TCP localport=9000
