@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.26)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.26)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.26';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.27)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.27)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.27';
 -->
 <html lang="ko">
 <head>
@@ -426,11 +426,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.26 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.27 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.26</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.27</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -774,7 +774,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.26';
+        const APP_VERSION = 'v3.27';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -940,7 +940,8 @@
             appendDebugLog(`PeerJS 서버 변경 → ${serverLabel(getServerCfg())} (${why})`);
             updateServerBadge();
             if (appState.isConnected && !updateLocked) {
-                teardownRoomNetwork();
+                teardownRoomNetwork();   // 예약돼 있던 재접속 타이머도 여기서 취소됨
+                connectAttempt = 0; doorWaitCount = 0; sigReconnectFails = 0;
                 setSyncBadge('서버 변경 중...');
                 setTimeout(() => { if (appState.isConnected) connectPeerRoomNetwork(appState.roomCode); }, 500 + Math.random() * 2500);
             }
@@ -1419,12 +1420,14 @@
         let deputyDeviceId = '';      // 부방장 기기 ID (표시용)
         let deputyPeerId = '';        // 부방장 노드 ID (방장이 사라지면 여기로 연결)
         let succState = 'idle';       // 'idle' | 'probe'(부방장이 옛 방장 확인 중) | 'follow'(게스트가 부방장에게 연결 중)
-        let promoteTimer = null, followTimer = null, followTries = 0, followTargetId = '';
+        let promoteTimer = null, followTimer = null, followTries = 0;
         let probeConn = null;
         let doorPeer = null, doorTimer = null, doorTries = 0, claimTimer = null;
         let pendingFollowers = [];    // 부방장 후보가 '방장이 되기 전에' 따라 들어온 게스트 연결
         const DOOR_MAX_TRIES = 30;        // 새 방장이 정문 ID(-host)를 다시 차지하려는 최대 시도 횟수(10~20초 간격)
         let doorWaitCount = 0, doorCountTimer = null;
+        let FIRST_JOIN_MIN_MS = 500, FIRST_JOIN_MAX_MS = 3000;   // v3.27: 새로 접속할 때 서버 요청이 한꺼번에 몰리지 않도록 0.5~3초 무작위 대기
+        let FAIL_BACKOFF_AFTER = 5, FAIL_BACKOFF_MS = 30000;      // v3.27: 연속 5번 실패하면 약 30초(±30%) 쉬었다가 재시도
         const PROMOTE_WAIT_MS = 5000;     // 부방장: 옛 방장이 이 시간 안에 응답하면 승격하지 않음
         const FOLLOW_MAX_TRIES = 6;       // 게스트: 부방장 연결 재시도 횟수(넘으면 예전 방식으로 방장 재탐색)
         const DOOR_WAIT_MAX = 5;          // 새 기기: 정문 ID 무응답 시 자동 재시도 횟수
@@ -1716,7 +1719,6 @@
                 if (prevEpoch > 0 && info.epoch > prevEpoch) {
                     const hm = members.find(m => m && m.host);
                     appendDebugLog(`방장 교체 안내 수신: 번호 ${prevEpoch}→${info.epoch}, 새 방장 ${hm ? hm.name : '?'}`);
-                    showToast(`방장이 ${hm ? hm.name : '다른 조원'}님으로 바뀌었습니다.`);
                 }
             }
             const activeIds = new Set();
@@ -2088,9 +2090,13 @@
         function scheduleReconnect(reason, quick = false, fixedDelayMs = 0) {
             if (!appState.isConnected || reconnectTimer) return;
             connectAttempt++;
-            const delay = fixedDelayMs > 0 ? fixedDelayMs : (quick
+            let delay = fixedDelayMs > 0 ? fixedDelayMs : (quick
                 ? 300 + Math.floor(Math.random() * 1200)
                 : Math.min(3000 * connectAttempt, 10000));
+            if (fixedDelayMs <= 0 && connectAttempt > FAIL_BACKOFF_AFTER) {
+                delay = Math.round(FAIL_BACKOFF_MS * (0.7 + Math.random() * 0.6));
+                appendDebugLog(`연속 ${connectAttempt - 1}번 실패 → 서버 보호를 위해 ${(delay / 1000).toFixed(0)}초 쉬었다가 재시도`);
+            }
             appendDebugLog(`${reason} → ${(delay / 1000).toFixed(1)}초 후 재시도 (${connectAttempt}번째)`);
             setSyncBadge('재연결 중...');
             teardownRoomNetwork(); // 낡은 연결을 먼저 정리한 뒤 재시도 예약
@@ -2281,13 +2287,13 @@
             appendDebugLog(`${reason} → ${iAmDeputy ? '내가 부방장: 옛 방장 확인 후 승격' : '부방장에게 이어서 연결'} (방장 번호 ${roomEpoch})`);
             stopHeartbeat();
             if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
-            setSyncBadge('방장 교체 중...');
+            setSyncBadge('다시 연결 중...');
             if (iAmDeputy) startDeputyProbe(); else startFollow();
         }
 
         // ---- 일반 게스트: 부방장에게 연결 ----
         function startFollow() {
-            succState = 'follow'; followTries = 0; followTargetId = deputyPeerId;
+            succState = 'follow'; followTries = 0;
             tryFollow();
         }
         function tryFollow() {
@@ -2300,7 +2306,7 @@
             appendDebugLog(`부방장 연결 시도 ${followTries}/${FOLLOW_MAX_TRIES}`);
             if (guestHostConn) { const g = guestHostConn; guestHostConn = null; try { g.close(); } catch (e) {} }
             let conn;
-            try { conn = p.connect(followTargetId, { reliable: true, metadata: metaForConn() }); }
+            try { conn = p.connect(deputyPeerId, { reliable: true, metadata: metaForConn() }); }
             catch (e) { nextFollow(); return; }
             bindGuestConn(p, conn, { timeoutMs: 6000, onTimeout: nextFollow });
         }
@@ -2384,7 +2390,6 @@
             renderPeers();
             startHostHeartbeat();
             broadcastRosterFromHost();
-            showToast('방장이 바뀌어 내가 새 방장이 되었습니다.');
             claimDoor();
             notifyOldHost(oldHostId, 0);
         }
@@ -2414,11 +2419,25 @@
         }
 
         // 옛 방장: 더 높은 번호의 방장이 있다는 알림을 받으면 게스트로 내려옴
+        // 정문 ID를 다른 기기가 쥐고 있을 때 한 번만 '내가 더 높은 번호 방장'임을 알림
+        function sendHostClaimOnce(targetId) {
+            const p = peerNetwork;
+            if (!isRoomHost || !p || p.destroyed || !p.open || !targetId || targetId === p.id) return;
+            try {
+                const c = p.connect(targetId, { reliable: true, metadata: metaForConn() });
+                c.on('open', () => {
+                    try { c.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: p.id }); } catch (e) {}
+                    appendDebugLog('정문 ID 점유자에게 방장 교체를 알림');
+                    setTimeout(() => { try { c.close(); } catch (e) {} }, 1500);
+                });
+                setTimeout(() => { if (!c.open) { try { c.close(); } catch (e) {} } }, 9000);
+            } catch (e) {}
+        }
+
         function stepDownTo(newHostId, epoch) {
             if (!appState.isConnected) return;
             const room = appState.roomCode;
             appendDebugLog(`더 높은 방장 번호(${epoch}>${roomEpoch}) 확인 → 방장에서 내려와 새 방장에게 연결`);
-            showToast('방장이 다른 조원으로 바뀌어 게스트로 전환합니다.');
             teardownRoomNetwork();
             activeRoomId = room;
             roomEpoch = epoch;
@@ -2450,7 +2469,10 @@
             d.on('error', (err) => {
                 if (doorPeer !== d) return;
                 const type = err && err.type ? err.type : String(err);
-                if (type === 'unavailable-id') appendDebugLog(`정문 ID 아직 사용 중 → 다시 시도 (${doorTries}/${DOOR_MAX_TRIES})`);
+                if (type === 'unavailable-id') {
+                    appendDebugLog(`정문 ID 아직 사용 중 → 다시 시도 (${doorTries}/${DOOR_MAX_TRIES})`);
+                    sendHostClaimOnce(doorId);   // 정문을 차지한 쪽이 낮은 번호의 방장이면 내려오게 알림 (살아 있는 방장이 없으면 응답 없이 끝남)
+                }
                 else appendDebugLog(`정문 노드 오류: ${type}`);
                 retry(10000 + Math.random() * 10000);
             });
@@ -2459,8 +2481,9 @@
         // 새로 들어오는 기기: 정문 ID에서 응답이 없을 때 안내 + 자동 재접속
         function doorWaitOrReconnect() {
             if (doorWaitCount >= DOOR_WAIT_MAX) {
-                showToast('방장 연결이 계속 안 됩니다. 방 나가기 후 다시 접속하거나, 조원 모두가 같은 새 코드를 정해 접속해 보세요.', 'warning');
-                scheduleReconnect('12초가 지나도 방장과 연결되지 않음(방장 ID 잔존 또는 P2P 차단 의심)');
+                appendDebugLog(`정문 ID 무응답이 ${DOOR_WAIT_MAX}번 이어져 방에서 자동 퇴장`);
+                executeLeaveRoom();
+                showToast('이 방과 연결되지 않아 나왔습니다. 잠시 뒤 다시 접속하거나, 조원 모두가 같은 새 코드를 정해 접속해 보세요.', 'warning');
                 return;
             }
             doorWaitCount++;
@@ -3130,7 +3153,17 @@
             document.getElementById('main-screen').classList.remove('hidden');
 
             markActivity();
-            connectPeerRoomNetwork(appState.roomCode);
+            if (isAutoRestore || FIRST_JOIN_MAX_MS <= 0) {
+                connectPeerRoomNetwork(appState.roomCode);
+            } else {
+                const firstDelay = FIRST_JOIN_MIN_MS + Math.random() * (FIRST_JOIN_MAX_MS - FIRST_JOIN_MIN_MS);
+                appendDebugLog(`첫 접속 ${(firstDelay / 1000).toFixed(1)}초 뒤 시작 (여러 기기가 동시에 접속해도 서버에 몰리지 않게 분산)`);
+                setSyncBadge('연결 준비 중...');
+                reconnectTimer = setTimeout(() => {
+                    reconnectTimer = null;
+                    if (appState.isConnected) connectPeerRoomNetwork(appState.roomCode);
+                }, firstDelay);
+            }
             broadcastPresence('PRESENCE_PING');
 
             renderPeers();
@@ -3604,7 +3637,7 @@
                 return;
             }
             if (!isRoomHost && !guestLinkAlive()) {
-                showToast('방장과 연결이 불안정합니다. 다시 연결하는 중이니 잠시 후 다시 보내주세요.', 'warning');
+                showToast('연결이 불안정합니다. 다시 연결하는 중이니 잠시 후 다시 보내주세요.', 'warning');
                 if (guestHostConn && guestHostConn.open) scheduleReconnect('전송 전 점검: 방장 응답 없음 → 재탐색', true);
                 return;
             }
