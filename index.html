@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.27)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.27)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.27';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.28)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.28)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.28';
 -->
 <html lang="ko">
 <head>
@@ -419,6 +419,7 @@
                     </div>
                     <div id="debug-log-content" class="max-h-36 overflow-y-auto space-y-1 leading-relaxed"></div>
                     <button type="button" onclick="openSettingsModal()" id="btn-teacher-settings" class="hidden w-full mt-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-extrabold font-sans transition active:scale-95">교사 설정 (업데이트 확인 방식 · 서버)</button>
+                    <button type="button" onclick="takeOverHostClick()" id="btn-take-host" class="hidden w-full mt-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold">방장 가져오기</button>
                     <button type="button" onclick="requestGlobalReset()" id="btn-global-reset" class="hidden w-full mt-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold font-sans transition active:scale-95">전체 초기화 (모든 방 · 모든 학생 첫 화면으로)</button>
                 </section>
                 </div><!-- /land-right -->
@@ -426,11 +427,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.27 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.28 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.27</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.28</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -774,7 +775,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.27';
+        const APP_VERSION = 'v3.28';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -849,20 +850,82 @@
             if (prevSessionLines.length) appendDebugLog(`──── 앱 시작 ${APP_VERSION} (위쪽은 이전 실행 기록) ────`);
         }
 
+        let fiveTapOpenedPanel = false;
         function handleHeaderTitleTap() {
             headerTapCount++;
             clearTimeout(headerTapResetTimer);
-            headerTapResetTimer = setTimeout(() => { headerTapCount = 0; }, 1800);
+            headerTapResetTimer = setTimeout(() => { headerTapCount = 0; fiveTapOpenedPanel = false; }, 1800);
             const panel = document.getElementById('debug-log-panel');
+            if (headerTapCount === 5 && panel && canTakeOverHost()) {
+                // v3.28: 부방장 기기에서만 '방장 가져오기' 버튼이 로그 아래에 나타남 (다른 기기에서는 아무 일도 없음)
+                fiveTapOpenedPanel = true;
+                panel.classList.remove('hidden');
+                const tb = document.getElementById('btn-take-host');
+                if (tb) { tb.textContent = '방장 가져오기'; tb.classList.remove('hidden'); }
+                appendDebugLog('방장 가져오기 버튼 표시 (부방장 기기)');
+            }
             if (headerTapCount === 7 && panel) {
-                panel.classList.toggle('hidden');
-                appendDebugLog(`진단 패널 열림 | 기기ID: ${deviceId} | 방코드: #${appState.roomCode}`);
+                if (!fiveTapOpenedPanel) {
+                    panel.classList.toggle('hidden');
+                    appendDebugLog(`진단 패널 열림 | 기기ID: ${deviceId} | 방코드: #${appState.roomCode}`);
+                }
             } else if (headerTapCount >= 12) {
                 headerTapCount = 0;
+                fiveTapOpenedPanel = false;
                 if (panel) panel.classList.remove('hidden');
                 ['btn-global-reset', 'btn-teacher-settings'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('hidden'); });
                 appendDebugLog('전체 초기화·교사 설정 버튼 표시됨');
             }
+        }
+
+        // ---- v3.28: 방장 가져오기 (교사용 비상 수단) ----
+        // 부방장(*) 기기에서만 가능. 두 번 눌러야 실행되고, 방장 번호를 올려 바로 방장이 된다.
+        // 옛 방장이 연결돼 있으면 자동으로 게스트로 내려오고, 끊겨 있으면 복구될 때 알림을 받아 내려온다.
+        let takeConfirmTimer = null;
+        function canTakeOverHost() {
+            return !!(appState.isConnected && !isRoomHost && deputyDeviceId && deputyDeviceId === deviceId);
+        }
+        function refreshTakeoverBtn() {
+            if (canTakeOverHost()) return;
+            clearTimeout(takeConfirmTimer); takeConfirmTimer = null;
+            const b = document.getElementById('btn-take-host');
+            if (b) { b.classList.add('hidden'); b.textContent = '방장 가져오기'; }
+        }
+        function takeOverHostClick() {
+            const b = document.getElementById('btn-take-host');
+            if (!b) return;
+            if (!canTakeOverHost()) { refreshTakeoverBtn(); return; }
+            if (!takeConfirmTimer) {
+                b.textContent = '정말 가져올까요? 5초 안에 한 번 더 누르세요';
+                takeConfirmTimer = setTimeout(() => { takeConfirmTimer = null; b.textContent = '방장 가져오기'; }, 5000);
+                return;
+            }
+            clearTimeout(takeConfirmTimer); takeConfirmTimer = null;
+            b.textContent = '방장 가져오기';
+            forceTakeOverHost();
+        }
+        function forceTakeOverHost() {
+            const p = peerNetwork;
+            if (!(p && !p.destroyed && !p.disconnected && p.open)) {
+                showToast('서버 연결이 불안정해 지금은 가져올 수 없습니다. 잠시 뒤 다시 시도해주세요.', 'warning');
+                return;
+            }
+            appendDebugLog('교사 요청: 방장 가져오기 → 방장 번호를 올려 바로 방장이 됨');
+            clearTimeout(followTimer); followTimer = null;
+            succState = 'probe';   // promoteToHost 가 요구하는 상태 (옛 방장 확인 5초는 건너뜀)
+            let wait = 0;
+            const g = guestHostConn;
+            if (g && g.open) {
+                // 옛 방장이 살아 있으면 먼저 알려서, 내가 연결을 닫을 때 옛 방장이 다른 조원을 부방장으로 새로 뽑지 못하게 함
+                try {
+                    g.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch + 1, hostPeerId: p.id });
+                    wait = 500;
+                } catch (e) {}
+            }
+            setTimeout(() => {
+                if (succState === 'probe' && appState.isConnected && !isRoomHost) promoteToHost();
+                refreshTakeoverBtn();
+            }, wait);
         }
 
         // ==========================================
@@ -1088,7 +1151,7 @@
 
         function closeDebugPanel() {
             document.getElementById('debug-log-panel').classList.add('hidden');
-            ['btn-global-reset', 'btn-teacher-settings'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('hidden'); });
+            ['btn-global-reset', 'btn-teacher-settings', 'btn-take-host'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.add('hidden'); });
         }
 
         // ==========================================
@@ -1426,6 +1489,7 @@
         let pendingFollowers = [];    // 부방장 후보가 '방장이 되기 전에' 따라 들어온 게스트 연결
         const DOOR_MAX_TRIES = 30;        // 새 방장이 정문 ID(-host)를 다시 차지하려는 최대 시도 횟수(10~20초 간격)
         let doorWaitCount = 0, doorCountTimer = null;
+        let NOTIFY_RETRY_MS = 10000, NOTIFY_MAX_TRIES = 360;      // v3.28: 새 방장이 옛 방장에게 교체를 알리는 시도: 10초 간격, 최대 약 1시간 (옛 방장이 복구되면 자동으로 게스트가 됨)
         let FIRST_JOIN_MIN_MS = 500, FIRST_JOIN_MAX_MS = 3000;   // v3.27: 새로 접속할 때 서버 요청이 한꺼번에 몰리지 않도록 0.5~3초 무작위 대기
         let FAIL_BACKOFF_AFTER = 5, FAIL_BACKOFF_MS = 30000;      // v3.27: 연속 5번 실패하면 약 30초(±30%) 쉬었다가 재시도
         const PROMOTE_WAIT_MS = 5000;     // 부방장: 옛 방장이 이 시간 안에 응답하면 승격하지 않음
@@ -1824,8 +1888,15 @@
                 // 더 높은 번호의 새 방장이 나타났다 → 나는 방장 자리에서 내려와 그쪽 게스트가 된다
                 // (번호가 같을 때는 ID가 작은 쪽을 남겨서, 서로 양보하다 둘 다 사라지는 일이 없게 함)
                 const myId = peerNetwork && peerNetwork.id ? String(peerNetwork.id) : '';
-                if (isRoomHost && typeof msg.epoch === 'number' && msg.hostPeerId &&
-                    (msg.epoch > roomEpoch || (msg.epoch === roomEpoch && String(msg.hostPeerId) < myId))) stepDownTo(msg.hostPeerId, msg.epoch);
+                if (isRoomHost && typeof msg.epoch === 'number' && msg.hostPeerId) {
+                    if (msg.epoch > roomEpoch || (msg.epoch === roomEpoch && String(msg.hostPeerId) < myId)) {
+                        stepDownTo(msg.hostPeerId, msg.epoch);
+                    } else if (conn && conn.open && myId) {
+                        // 내가 더 높은 번호(또는 같은 번호에서 ID가 작음)이면, 알려 온 쪽이 내려오도록 되돌려 알림
+                        try { conn.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: myId }); } catch (e) {}
+                        appendDebugLog('나보다 낮은 번호의 방장이 알려 와서, 내가 방장임을 되돌려 알림');
+                    }
+                }
             } else if (msg.type === 'FILE_TRANSFER') {
                 handleFileTransferPacket(msg);
             } else if (msg.type === 'FILE_ACK') {
@@ -2399,11 +2470,12 @@
         function notifyOldHost(oldId, tries) {
             clearTimeout(claimTimer); claimTimer = null;
             const p = peerNetwork;
-            if (!isRoomHost || !oldId || !p || p.destroyed || oldId === p.id || tries >= 18) return;
+            if (!isRoomHost || !oldId || !p || p.destroyed || oldId === p.id || tries >= NOTIFY_MAX_TRIES) return;
             if (doorPeer && doorPeer.open && doorPeer.id === oldId) return;   // 정문 ID를 내가 이미 차지했으면 알릴 필요 없음
             let done = false;
             try {
                 const c = p.connect(oldId, { reliable: true, metadata: metaForConn() });
+                c.on('data', (d) => handleIncomingNetworkPayload(d, c));
                 c.on('open', () => {
                     done = true;
                     clearTimeout(claimTimer); claimTimer = null;
@@ -2413,9 +2485,9 @@
                     } catch (e) {}
                     setTimeout(() => { try { c.close(); } catch (e) {} }, 1500);
                 });
-                setTimeout(() => { if (!c.open) { try { c.close(); } catch (e) {} } }, 9000);   // 응답 없는 시도는 정리
+                setTimeout(() => { if (!c.open) { try { c.close(); } catch (e) {} } }, Math.min(9000, NOTIFY_RETRY_MS - 500));   // 응답 없는 시도는 정리
             } catch (e) {}
-            if (!done) claimTimer = setTimeout(() => notifyOldHost(oldId, tries + 1), 10000);
+            if (!done) claimTimer = setTimeout(() => notifyOldHost(oldId, tries + 1), NOTIFY_RETRY_MS);
         }
 
         // 옛 방장: 더 높은 번호의 방장이 있다는 알림을 받으면 게스트로 내려옴
@@ -2425,6 +2497,7 @@
             if (!isRoomHost || !p || p.destroyed || !p.open || !targetId || targetId === p.id) return;
             try {
                 const c = p.connect(targetId, { reliable: true, metadata: metaForConn() });
+                c.on('data', (d) => handleIncomingNetworkPayload(d, c));
                 c.on('open', () => {
                     try { c.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: p.id }); } catch (e) {}
                     appendDebugLog('정문 ID 점유자에게 방장 교체를 알림');
@@ -3187,6 +3260,7 @@
         function updateOwnNickLabel() {
             const el = document.getElementById('display-nickname');
             if (el) el.textContent = (appState.nickname || '') + (isRoomHost ? HOST_MARK : (deputyDeviceId === deviceId ? DEPUTY_MARK : ''));
+            refreshTakeoverBtn();
         }
 
         // 가로 화면에서만: 상단의 방코드·이름을 누르면 '이름/코드 변경' 창 열기
