@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.28)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.28)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.28';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.29)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.29)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.29';
 -->
 <html lang="ko">
 <head>
@@ -427,11 +427,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.28 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.29 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.28</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.29</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -775,7 +775,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.28';
+        const APP_VERSION = 'v3.29';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1156,10 +1156,11 @@
 
         // ==========================================
         // 전체 초기화: 교사가 요청하면 모든 방의 모든 기기가 첫 화면(닉네임·코드 입력)으로 돌아감
-        // 방법: 앱스 스크립트에 '초기화 번호'를 올려 두고, 각 기기가 30초마다 확인 (PeerJS 서버가 불안정해도 동작)
+        // 방법: 앱스 스크립트에 '초기화 번호'를 올려 두고, 각 기기가 10초마다 확인 (PeerJS 서버가 불안정해도 동작) + 먼저 안 기기가 같은 방에 알려 줌
         // ==========================================
         const RESET_EPOCH_KEY = 'gyenam_reset_epoch';
-        const RESET_POLL_MS = 30000;
+        const RESET_POLL_MS = 10000;   // v3.29: 30초 → 10초 (같은 방 조원에게는 힌트로 바로 알려 몇 초 안에 따라감)
+        let lastResetHintAt = 0;
 
         let lastServerFromSheet = null;
         async function fetchResetEpoch() {
@@ -1199,9 +1200,16 @@
             localStorage.setItem(RESET_EPOCH_KEY, String(e));
             // 처음 확인한 값은 기준으로만 저장 (새로 설치한 기기가 곧바로 초기화되지 않도록)
             if (localStorage.getItem(RESET_EPOCH_KEY + '_init') && e > saved) {
-                performGlobalReset('선생님이 전체 초기화를 했습니다. 닉네임과 코드를 다시 입력해주세요.');
+                sendResetHint();   // 같은 방 조원에게 '지금 확인해 보라'고 먼저 알림
+                setTimeout(() => performGlobalReset('선생님이 전체 초기화를 했습니다. 닉네임과 코드를 다시 입력해주세요.'), 400);
             }
             localStorage.setItem(RESET_EPOCH_KEY + '_init', '1');
+        }
+
+        // 같은 방에 '초기화 번호를 지금 확인해 보라'는 힌트를 보냄 (힌트만 보내고, 실제 초기화는 각 기기가 서버 값을 직접 확인한 뒤에만 함)
+        function sendResetHint() {
+            if (!appState.isConnected) return;
+            dispatchNetworkMessage({ type: 'RESET_HINT', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode });
         }
 
         function performGlobalReset(message) {
@@ -1235,8 +1243,9 @@
                 if (!j || !j.ok) throw new Error((j && j.error) || '서버 응답 오류');
                 localStorage.setItem(RESET_EPOCH_KEY, String(j.epoch));
                 localStorage.setItem(RESET_EPOCH_KEY + '_init', '1');
-                appendDebugLog(`전체 초기화 등록 완료 (번호 ${j.epoch}) · 학생 기기는 최대 30초 안에 첫 화면으로 돌아갑니다`);
-                performGlobalReset('전체 초기화 완료! 학생 기기는 최대 30초 안에 첫 화면으로 돌아갑니다.');
+                appendDebugLog(`전체 초기화 등록 완료 (번호 ${j.epoch}) · 학생 기기는 보통 몇 초, 늦어도 10초쯤 안에 첫 화면으로 돌아갑니다`);
+                sendResetHint();
+                setTimeout(() => performGlobalReset('전체 초기화 완료! 학생 기기는 보통 몇 초, 늦어도 10초쯤 안에 첫 화면으로 돌아갑니다.'), 400);
             } catch (e) {
                 appendDebugLog('전체 초기화 실패: ' + e.message);
                 showToast('전체 초기화 실패: 기록 서버(앱스 스크립트)가 최신 버전인지 확인해주세요.');
@@ -1335,19 +1344,27 @@
             const j = await fetchJsonTimeout(UPDATE_API_URL);
             return (j && j.tag_name) ? j : null;
         }
-        async function fetchReleaseInfo() {
+        async function fetchReleaseInfo(patient = false) {
             lastUpdateErr = '';
             const first = getUpdateSource() === 'github' ? fetchReleaseFromGithub : fetchReleaseFromSheet;
             const second = getUpdateSource() === 'github' ? fetchReleaseFromSheet : fetchReleaseFromGithub;
             let rel = await first();
+            // v3.29: 조용히 확인할 때, 스크립트가 잠시 바쁜 것일 수 있으니 2~8초 무작위로 기다렸다가 2번까지 다시 시도
+            //        (실패한 기기들이 한꺼번에 GitHub 직접 호출로 몰리지 않게). 직접 누른 '업데이트 확인'은 기다리지 않음
+            if (!rel && patient && first === fetchReleaseFromSheet) {
+                for (let i = 0; i < 2 && !rel; i++) {
+                    await new Promise(r => setTimeout(r, 2000 + Math.random() * 6000));
+                    rel = await first();
+                }
+            }
             if (!rel) rel = await second();
             return rel;
         }
 
         // 반환: 'newer'(새 버전 있음) | 'latest'(최신) | 'error'
-        async function fetchUpdateState() {
+        async function fetchUpdateState(patient = false) {
             try {
-                const rel = await fetchReleaseInfo();
+                const rel = await fetchReleaseInfo(patient);
                 if (!rel) return 'error';
                 const tag = String(rel.tag_name || '');
                 if (!tag) return 'error';
@@ -1371,8 +1388,8 @@
         function silentUpdateCheck(force = false) {
             if (updateLocked) return;
             if (!force && Date.now() - lastUpdateCheckAt < 5 * 60 * 1000) return;
-            if (force) fetchUpdateState();
-            else setTimeout(() => { if (!updateLocked && Date.now() - lastUpdateCheckAt >= 5 * 60 * 1000) fetchUpdateState(); }, Math.random() * 4000);
+            if (force) fetchUpdateState(true);
+            else setTimeout(() => { if (!updateLocked && Date.now() - lastUpdateCheckAt >= 5 * 60 * 1000) fetchUpdateState(true); }, Math.random() * 6000);   // v3.29: 0~4초 → 0~6초로 넓게 분산
         }
 
         async function checkForAppUpdates() {
@@ -1884,6 +1901,14 @@
                 applyRosterFromHost(msg.members, msg);
                 if (guestHostConn) { guestHostConn._ready = true; }
                 followTries = 0; doorWaitCount = 0;
+            } else if (msg.type === 'RESET_HINT') {
+                // 같은 방의 누군가가 전체 초기화를 알아챘다 → 나도 서버 값을 바로 확인 (3초에 한 번까지만 반응해 남용 방지)
+                const nowT = Date.now();
+                if (nowT - lastResetHintAt > 3000) {
+                    lastResetHintAt = nowT;
+                    if (isRoomHost) relayFileTransfer(msg);
+                    pollResetEpoch();
+                }
             } else if (msg.type === 'HOST_CLAIM') {
                 // 더 높은 번호의 새 방장이 나타났다 → 나는 방장 자리에서 내려와 그쪽 게스트가 된다
                 // (번호가 같을 때는 ID가 작은 쪽을 남겨서, 서로 양보하다 둘 다 사라지는 일이 없게 함)
@@ -2043,6 +2068,7 @@
             if (pending.got.size >= pending.expected.size) {
                 clearTimeout(pending.timer);
                 delete pendingAcks[msg.transferId];
+                if (pending.onAllAcked) { try { pending.onAllAcked(); } catch (e) {} }
             }
         }
 
@@ -3461,6 +3487,15 @@
             showToast(`'${removed.filename}' 파일을 목록에서 뺐습니다. (내 기기의 원본 파일은 그대로입니다)`);
         }
 
+        // v3.29: 전송이 끝난 파일을 목록에서 뺌 (내 기기의 원본 파일은 그대로, 안내 메시지 없이 조용히)
+        function removeSentPickerFile(fileId) {
+            const idx = appState.geminiFolderFiles.findIndex(f => f.id === fileId);
+            if (idx < 0) return;
+            const [removed] = appState.geminiFolderFiles.splice(idx, 1);
+            appendDebugLog(`전송 완료 파일을 선택 목록에서 뺌: ${removed.filename}`);
+            renderGeminiPickerFiles();
+        }
+
         function togglePickerFileSelect(fileId) {
             const target = appState.geminiFolderFiles.find(f => f.id === fileId);
             if (target) {
@@ -3781,6 +3816,8 @@
                     }
 
                     trackFileAck(transferId, f.filename, selectedPeers);
+                    // v3.29: 선택 목록에서 보낸 파일은, 모든 대상이 받았다는 확인이 오면 목록에서 자동으로 뺌 (일부가 못 받았으면 남김)
+                    if (!asText && f.id && pendingAcks[transferId]) pendingAcks[transferId].onAllAcked = () => removeSentPickerFile(f.id);
                     batchIds.push(transferId);
                     const used = sendPacketToTargets(packet, targetIds);
                     if (used.length === 0) {
@@ -4663,7 +4700,7 @@
             setInterval(pollResetEpoch, RESET_POLL_MS);
             if (IS_NATIVE) {
                 pullNativeShared();
-                setTimeout(fetchUpdateState, 3000);
+                setTimeout(() => fetchUpdateState(true), Math.random() * 6000);   // v3.29: 모든 기기가 똑같이 3초 뒤가 아니라 0~6초 무작위
             }
             window.addEventListener('click', () => {
                 if (appState.isConnected) {
