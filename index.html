@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.29)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.29)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.29';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.30)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.30)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.30';
 -->
 <html lang="ko">
 <head>
@@ -373,7 +373,10 @@
                     <div id="transfer-progress-box" class="hidden mt-3 p-3 rounded-2xl bg-slate-900 text-white space-y-1.5">
                         <div class="flex justify-between items-center text-xs">
                             <span id="transfer-filename" class="font-bold truncate max-w-[200px]">파일 전송 중...</span>
-                            <span id="transfer-percent" class="font-extrabold text-emerald-400">0%</span>
+                            <span class="flex items-center gap-2 shrink-0">
+                                <span id="transfer-percent" class="font-extrabold text-emerald-400">0%</span>
+                                <button type="button" id="transfer-cancel-btn" onclick="cancelTransfer()" class="px-2 py-0.5 rounded-lg bg-slate-700 hover:bg-rose-600 text-white text-[11px] font-bold transition active:scale-95">취소</button>
+                            </span>
                         </div>
                         <div class="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
                             <div id="transfer-bar" class="bg-gradient-to-r from-blue-400 to-emerald-400 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
@@ -427,11 +430,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.29 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.30 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.29</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.30</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -775,7 +778,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.29';
+        const APP_VERSION = 'v3.30';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1493,6 +1496,8 @@
         let reconnectTimer = null;
         let connectAttempt = 0;
         let transferInProgress = false;
+        let transferCancelRequested = false;     // v3.30: 전송 도중 [취소]를 눌렀는지
+        let transferActiveConns = [];            // v3.30: 지금 전송에 쓰는 연결들 (취소할 때 보내지 못한 대기분을 비우기 위해)
 
         // ---- v3.26 방장 승계(부방장) 상태 ----
         let roomEpoch = 0;            // 방장 교체 번호(클수록 최신 방장). 0 = 아직 방장 명단을 받은 적 없음
@@ -2234,9 +2239,26 @@
             }, delay);
         }
 
+        // v3.30: 큰 파일이 오가는 동안에는 '메시지 하나'가 다 도착하기 전까지 data 이벤트가 없어서, 15초(방장)·25초(조원)
+        // 무응답 판정에 걸려 멀쩡한 연결이 끊기던 문제 → 데이터 조각이 하나라도 도착하면 상대가 살아 있다고 본다.
+        function watchRawActivity(conn, onActivity) {
+            const attach = () => {
+                try {
+                    const dc = conn && conn.dataChannel;
+                    if (dc && typeof dc.addEventListener === 'function') dc.addEventListener('message', onActivity);
+                } catch (e) {}
+            };
+            if (conn && conn.open) attach(); else if (conn) conn.on('open', attach);
+        }
+
         function setupHostConnection(conn, skipData = false) {
             appendDebugLog(`게스트 접속 요청 감지: ${conn.peer}`);
             hostConnList.push(conn);
+            let rawOwner = null;
+            watchRawActivity(conn, () => {
+                if (!rawOwner || rawOwner.conn !== conn) rawOwner = Object.values(liveSyncedPeers).find(p => p.conn === conn) || null;
+                if (rawOwner) rawOwner.lastSeen = Date.now();
+            });
             watchIceState(conn, '방장←게스트', (why) => {
                 appendDebugLog(`방장←게스트 연결 끊김 판정(${why}) → 정리`);
                 try { conn.close(); } catch (e) {}
@@ -2302,6 +2324,7 @@
                 startGuestHeartbeat();
             };
             if (conn.open) onOpen(); else conn.on('open', onOpen);
+            watchRawActivity(conn, () => { if (guestHostConn === conn) lastHostMsgAt = Date.now(); });
             conn.on('data', (data) => {
                 lastHostMsgAt = Date.now();
                 handleIncomingNetworkPayload(data, conn);
@@ -3688,6 +3711,23 @@
             return used;
         }
 
+        // v3.30: 전송 도중 [취소] — 아직 내보내지 못한 대기분을 비우고, 곧바로 다시 보낼 수 있게 풀어 준다.
+        // (이미 브라우저 전송 버퍼로 넘어간 부분은 되돌릴 수 없어서, 받는 쪽이 이어서 받을 수는 있음)
+        function dropQueuedSend(conns) {
+            (conns || []).forEach(c => {
+                try { if (c && Array.isArray(c._buffer)) c._buffer.length = 0; } catch (e) {}
+                try { if (c && typeof c._bufferSize === 'number') c._bufferSize = 0; } catch (e) {}
+            });
+        }
+        function cancelTransfer() {
+            if (!transferInProgress || transferCancelRequested) return;
+            transferCancelRequested = true;
+            dropQueuedSend(transferActiveConns);
+            const btn = document.getElementById('transfer-cancel-btn');
+            if (btn) btn.disabled = true;
+            appendDebugLog('전송 취소 버튼 눌림');
+        }
+
         // 브라우저 전송 버퍼가 비워질 때까지 기다리며 실제 진행률을 계산
         function waitForSendDrain(conns, onProgress) {
             return new Promise((resolve) => {
@@ -3698,6 +3738,7 @@
                 let peakQueued = 0;
                 let shown = 0;
                 const tick = () => {
+                    if (transferCancelRequested) { resolve('cancel'); return; }
                     let buffered = 0;
                     let queued = 0;
                     conns.forEach(c => {
@@ -3788,11 +3829,17 @@
             setTransferProgress(0);
 
             transferInProgress = true;
+            transferCancelRequested = false;
+            transferActiveConns = [];
+            const cancelBtn = document.getElementById('transfer-cancel-btn');
+            if (cancelBtn) cancelBtn.disabled = false;
             let doneBytes = 0;
             let stalled = false;
+            let cancelled = false;
             const batchIds = [];
             try {
                 for (const f of items) {
+                    if (transferCancelRequested) { cancelled = true; break; }
                     const bytes = itemBytes(f);
                     const transferId = 't_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
                     const packet = {
@@ -3819,11 +3866,25 @@
                     // v3.29: 선택 목록에서 보낸 파일은, 모든 대상이 받았다는 확인이 오면 목록에서 자동으로 뺌 (일부가 못 받았으면 남김)
                     if (!asText && f.id && pendingAcks[transferId]) pendingAcks[transferId].onAllAcked = () => removeSentPickerFile(f.id);
                     batchIds.push(transferId);
+                    if (transferCancelRequested) {
+                        // v3.30: 파일을 읽는 동안 취소됨 → 아직 아무것도 보내지 않았음
+                        const pc = pendingAcks[transferId]; if (pc) { clearTimeout(pc.timer); delete pendingAcks[transferId]; }
+                        cancelled = true; break;
+                    }
                     const used = sendPacketToTargets(packet, targetIds);
+                    transferActiveConns = used;
                     if (used.length === 0) {
                         throw new Error('연결된 대상에게 보낼 수 없습니다');
                     }
                     const sentOk = await waitForSendDrain(used, (r) => setTransferProgress((doneBytes + bytes * r) / totalBytes));
+                    if (sentOk === 'cancel') {
+                        // v3.30: 아직 모두에게 나가지 않은 상태에서 취소 → 수신 확인 추적도 같이 거둔다(거짓 "수신 확인 없음" 방지)
+                        dropQueuedSend(used);
+                        const pc = pendingAcks[transferId]; if (pc) { clearTimeout(pc.timer); delete pendingAcks[transferId]; }
+                        appendDebugLog(`전송 취소: ${f.filename} -> ${receiverNames} (이미 내보낸 부분은 받는 쪽이 이어서 받을 수 있음)`);
+                        logTransfer({ dir: '송신', peer: receiverNames, kind: asText ? '메시지' : '파일', filename: f.filename, size: f.size, result: '취소', transferId });
+                        cancelled = true; break;
+                    }
                     if (!sentOk) {
                         stalled = true;
                         throw new Error('상대 기기로 데이터가 전달되지 않습니다(연결 끊김 의심)');
@@ -3847,6 +3908,11 @@
                     });
                     appendDebugLog(`파일 송신 완료: ${f.filename} -> ${receiverNames}`);
                 }
+                if (cancelled) {
+                    progressBox.classList.add('hidden');
+                    showToast('전송을 취소했습니다. 이미 받은 조원도 있을 수 있어요. 다시 보내려면 받을 조원을 확인하고 보내주세요.');
+                    return;
+                }
                 setTransferProgress(1);
                 progressFilename.textContent = `${label} 전송 완료!`;
                 setTimeout(() => progressBox.classList.add('hidden'), 350);
@@ -3863,6 +3929,8 @@
                 if (stalled && !isRoomHost) scheduleReconnect('전송 실패 → 연결 재확인', true);
             } finally {
                 transferInProgress = false;
+                transferCancelRequested = false;
+                transferActiveConns = [];
             }
         }
 
