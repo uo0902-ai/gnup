@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.30)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.30)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.30';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.31)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.31)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.31';
 -->
 <html lang="ko">
 <head>
@@ -323,14 +323,19 @@
                             코드 <strong id="radar-code-label" class="text-indigo-700">#1234</strong> 로 접속한 조원 (터치하여 수신 대상 선택)
                         </p>
 
+                        <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
+                            <button type="button" id="btn-peers-select-all" onclick="selectAllPeers()" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold transition active:scale-95">전체 선택</button>
+                            <button type="button" id="btn-peers-clear-all" onclick="clearAllPeers()" class="px-3 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 text-[11px] font-bold transition active:scale-95">전체 해제</button>
+                        </div>
+
                         <div id="peers-container" class="grid grid-cols-3 gap-2 relative z-10">
                             <!-- JS 동적 렌더링 -->
                         </div>
                     </div>
                 </section>
 
-                <!-- 2. 파일 보내기 (제미나이 다운로드 폴더 기본 경로 & 최신순 정렬) -->
-                <section class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
+                <!-- 2. 파일 보내기 (제미나이 다운로드 폴더 기본 경로 & 최신순 정렬) — v3.31: 가로 화면에서는 오른쪽 맨 위로 옮겨짐(placeSendSection) -->
+                <section id="send-section" class="bg-white rounded-3xl p-4 shadow-sm border border-slate-100">
                     <div class="flex items-center justify-between mb-2.5">
                         <h2 class="text-sm font-extrabold text-slate-800">파일 보내기</h2>
                         <span id="selected-target-label" class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-lg">
@@ -430,11 +435,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.30 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.31 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.30</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.31</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -459,7 +464,7 @@
         <!-- ========================================== -->
         <!-- 모달 1: 제미나이 폴더 우선 파일 선택기 (최신순 정렬) -->
         <!-- ========================================== -->
-        <div id="gemini-picker-modal" class="hidden absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end">
+        <div id="gemini-picker-modal" class="hidden fixed sm:absolute inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex flex-col justify-end"><!-- v3.31: 폰 세로 화면에서는 긴 페이지가 아니라 보이는 화면 기준으로 깔림 -->
             <div class="bg-white rounded-t-3xl h-[86%] flex flex-col overflow-hidden shadow-2xl">
                 <div class="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
@@ -778,7 +783,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.30';
+        const APP_VERSION = 'v3.31';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -3312,6 +3317,21 @@
             refreshTakeoverBtn();
         }
 
+        // v3.31: 가로 화면(태블릿)에서는 '파일 보내기'를 오른쪽 맨 위로 — 조원 목록을 끝까지 내리지 않아도 보낼 수 있게
+        const LANDSCAPE_QUERY = '(orientation: landscape) and (min-width: 700px)';
+        function placeSendSection() {
+            const sec = document.getElementById('send-section');
+            const left = document.getElementById('land-left');
+            const right = document.getElementById('land-right');
+            if (!sec || !left || !right) return;
+            const landscape = !!(window.matchMedia && window.matchMedia(LANDSCAPE_QUERY).matches);
+            if (landscape) {
+                if (sec.parentNode !== right) right.insertBefore(sec, right.firstChild);
+            } else if (sec.parentNode !== left) {
+                left.appendChild(sec);
+            }
+        }
+
         // 가로 화면에서만: 상단의 방코드·이름을 누르면 '이름/코드 변경' 창 열기
         function onHeaderProfileTap() {
             if (window.matchMedia && window.matchMedia('(orientation: landscape) and (min-width: 700px)').matches) {
@@ -3590,6 +3610,34 @@
         // ==========================================
         // 7. 주변 조원 렌더링, 파일 송수신 및 Web Share API 공유
         // ==========================================
+        // v3.31: 기기 카드를 누를 때 — 전체가 선택된 상태에서 누르면 그 기기만 선택, 그 뒤로는 누르는 대로 추가/해제
+        function onPeerCardTap(peerId) {
+            const all = getCombinedPeers();
+            const target = all.find(p => p.id === peerId);
+            if (!target) return;
+            const allSelected = all.length > 0 && all.every(p => p.selected);
+            if (allSelected) {
+                all.forEach(p => { p.selected = (p.id === peerId); });
+            } else {
+                target.selected = !target.selected;
+            }
+            renderPeers();
+            saveSessionState();
+        }
+
+        // v3.31: 전체 선택 / 전체 해제
+        function selectAllPeers() {
+            getCombinedPeers().forEach(p => { p.selected = true; });
+            renderPeers();
+            saveSessionState();
+        }
+
+        function clearAllPeers() {
+            getCombinedPeers().forEach(p => { p.selected = false; });
+            renderPeers();
+            saveSessionState();
+        }
+
         function renderPeers() {
             const peers = getCombinedPeers();
             const container = document.getElementById('peers-container');
@@ -3601,11 +3649,7 @@
                 const isSelected = peer.selected;
                 const card = document.createElement('button');
                 card.type = 'button';
-                card.onclick = () => {
-                    peer.selected = !peer.selected;
-                    renderPeers();
-                    saveSessionState();
-                };
+                card.onclick = () => onPeerCardTap(peer.id);
                 card.className = `flex flex-col items-center p-2.5 rounded-2xl border transition-all ${
                     isSelected 
                     ? 'bg-white border-indigo-500 shadow-sm ring-2 ring-indigo-500/20' 
@@ -4745,6 +4789,12 @@
 
         // 앱 초기화 실행
         window.addEventListener('DOMContentLoaded', () => {
+            placeSendSection();
+            try {
+                const mqLand = window.matchMedia(LANDSCAPE_QUERY);
+                if (mqLand.addEventListener) mqLand.addEventListener('change', placeSendSection); else if (mqLand.addListener) mqLand.addListener(placeSendSection);
+            } catch (e) {}
+            window.addEventListener('resize', placeSendSection);
             initAppInfo();
             silentUpdateCheck(true);
             initTransferLog();
