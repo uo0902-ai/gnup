@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.31)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.31)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.31';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.32)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.32)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.32';
 -->
 <html lang="ko">
 <head>
@@ -435,11 +435,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.31 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.32 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.31</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.32</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -742,7 +742,7 @@
         <!-- 토스트 알림 메시지 박스                     -->
         <!-- ========================================== -->
         <!-- 텍스트 메시지 팝업 (링크는 눌러서 바로 접속) -->
-        <div id="text-popup" class="hidden absolute top-4 left-4 right-4 z-[65] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
+        <div id="text-popup" class="hidden fixed sm:absolute top-4 left-4 right-4 z-[65] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
             <div class="flex items-center gap-2 mb-2">
                 <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0"><i data-lucide="message-square" class="w-4 h-4"></i></div>
                 <p class="text-xs font-extrabold flex-1">메시지가 도착했습니다</p>
@@ -751,7 +751,7 @@
             <div id="text-popup-list" class="space-y-1.5 max-h-60 overflow-y-auto"></div>
         </div>
 
-        <div id="incoming-popup" class="hidden absolute top-4 left-4 right-4 z-[60] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
+        <div id="incoming-popup" class="hidden fixed sm:absolute top-4 left-4 right-4 z-[60] bg-white text-slate-900 rounded-2xl shadow-2xl border border-indigo-200 p-3.5">
             <div class="flex items-start gap-2.5">
                 <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
                     <i data-lucide="inbox" class="w-4 h-4"></i>
@@ -772,7 +772,7 @@
             </div>
         </div>
 
-        <div id="toast-box" class="hidden absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
+        <div id="toast-box" class="hidden fixed sm:absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
             <i id="toast-icon" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
             <span id="toast-message" class="flex-1 leading-snug">알림 메시지</span>
         </div>
@@ -783,7 +783,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.31';
+        const APP_VERSION = 'v3.32';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1470,7 +1470,16 @@
         const GUEST_CONNECT_TIMEOUT_MS = 12000;  // 방장과 이 시간 안에 연결되지 않으면 재시도
         const HOST_SILENCE_MS = 15000;           // 방장에게서 이 시간 동안 아무 신호가 없으면 방장이 사라진 것으로 판단
         let SEND_STALL_MS = 20000;               // 전송 중 이 시간 동안 데이터가 전혀 빠져나가지 않으면 실패로 판단
-        const ACK_WAIT_MS = 20000;               // 파일을 보낸 뒤 상대 수신 확인을 기다리는 시간
+        const SIGNALING_OPEN_TIMEOUT_MS = 18000;   // v3.32: 서버 접속 시도 1회에 기다리는 최대 시간(학교 밖 등에서 77초·240초씩 매달리던 문제)
+        const ACK_WAIT_MS = 20000;               // 파일을 보낸 뒤 상대 수신 확인을 기다리는 최소 시간
+        const ACK_WAIT_MAX_MS = 120000;          // v3.32: 받는 사람이 많거나 파일이 크면 이 한도까지 더 기다림
+        const ACK_EST_BYTES_PER_SEC = 1200000;   // v3.32: 방장이 여러 명에게 나눠 보내는 속도 추정(실측 약 2.4MB/s의 절반, 여유 있게)
+        // v3.32: 받는 사람 수 × 파일 크기에 비례해 기다리는 시간을 늘림 (26명에게 보내면 26초 이상 걸리는데 20초만 기다려 거짓 경고가 나던 문제)
+        function ackWaitMs(bytes, targetCount) {
+            const est = (Math.max(0, bytes) * Math.max(1, targetCount) / ACK_EST_BYTES_PER_SEC) * 1000;
+            return Math.round(Math.min(ACK_WAIT_MAX_MS, Math.max(ACK_WAIT_MS, 15000 + est)));
+        }
+        const lateAcks = {};                     // v3.32: 시간 안에 못 받아 '없음'으로 처리한 뒤 늦게 도착한 확인을 기록하기 위한 보관소
         let lastHostMsgAt = 0;
         let hiddenAt = 0;
         let sigReconnectTimer = null;
@@ -2070,7 +2079,8 @@
             }
             if (!mine) return;
             const pending = pendingAcks[msg.transferId];
-            if (!pending || pending.got.has(msg.senderId)) return;
+            if (!pending) { noteLateAck(msg); return; }
+            if (pending.got.has(msg.senderId)) return;
             pending.got.add(msg.senderId);
             appendDebugLog(`수신 확인: ${msg.senderName} 님이 '${pending.filename}' 파일을 받음`);
             showToast(`✅ ${msg.senderName}님이 '${pending.filename}' 파일을 받았습니다.`);
@@ -2080,6 +2090,17 @@
                 delete pendingAcks[msg.transferId];
                 if (pending.onAllAcked) { try { pending.onAllAcked(); } catch (e) {} }
             }
+        }
+
+        // v3.32: 경고가 나간 뒤에 늦게 온 수신 확인도 기록으로 남김 (상대는 받았는데 확인만 늦은 경우 구분)
+        function noteLateAck(msg) {
+            const late = lateAcks[msg.transferId];
+            if (!late || late.got.has(msg.senderId)) return;
+            late.got.add(msg.senderId);
+            const sec = Math.round((Date.now() - late.sentAt) / 1000);
+            appendDebugLog(`늦은 수신 확인: ${msg.senderName} 님이 '${late.filename}' 파일을 받음 (보낸 지 ${sec}초 뒤)`);
+            logTransfer({ dir: '수신확인', peer: msg.senderName, filename: late.filename, result: `늦은 수신 확인(${sec}초)`, transferId: msg.transferId });
+            showToast(`✅ ${msg.senderName}님이 '${late.filename}' 파일을 받았습니다. (확인이 늦게 도착)`);
         }
 
         function trackFileAck(transferId, filename, selectedPeers) {
@@ -2092,20 +2113,31 @@
             pendingAcks[transferId] = pending;
         }
 
-        function armAckTimer(transferId) {
+        function armAckTimer(transferId, waitMs = ACK_WAIT_MS) {
             const pending = pendingAcks[transferId];
             if (!pending) return; // 이미 모두 수신 확인됨
+            const armedAt = Date.now();
             pending.timer = setTimeout(() => {
-                const missing = [...pending.expected.entries()].filter(([id]) => !pending.got.has(id)).map(([, n]) => n);
+                const missingIds = [...pending.expected.keys()].filter(id => !pending.got.has(id));
+                const missing = missingIds.map(id => pending.expected.get(id));
                 delete pendingAcks[transferId];
                 if (missing.length === 0) return;
-                appendDebugLog(`수신 확인 없음: ${missing.join(', ')} ('${pending.filename}')`);
+                // 늦게 도착할 확인을 기록하기 위해 10분간 보관
+                lateAcks[transferId] = { filename: pending.filename, sentAt: armedAt, got: new Set(pending.got), expected: new Set(missingIds) };
+                setTimeout(() => { delete lateAcks[transferId]; }, 600000);
+                const sec = Math.round(waitMs / 1000);
+                appendDebugLog(`수신 확인 없음: ${missing.join(', ')} ('${pending.filename}') · ${sec}초 기다림`);
                 logTransfer({ dir: '수신확인', peer: missing.join(', '), filename: pending.filename, result: '수신 확인 없음', transferId });
-                showToast(`⚠ ${missing.join(', ')}님의 수신 확인이 없습니다. 상대 앱이 백그라운드/절전 상태일 수 있어요. 앱을 켠 뒤 다시 보내주세요.`, 'warning');
-            }, ACK_WAIT_MS);
+                const shown = missing.length > 3 ? `${missing.slice(0, 3).join(', ')} 외 ${missing.length - 3}명` : missing.join(', ');
+                showToast(`⚠ ${shown}님의 수신 확인이 ${sec}초 안에 오지 않았습니다. 파일이 늦게 도착했을 수 있어요. 상대 화면을 확인하고, 안 왔으면 다시 보내주세요.`, 'warning', 7000);
+            }, waitMs);
         }
 
         function relayFileTransfer(msg) {
+            if (msg.type === 'FILE_TRANSFER' && msg.fileBuffer) {   // v3.32: 방장이 받아서 나눠 보내는 시점을 기록(전달 지연 분석용)
+                const n = Object.values(liveSyncedPeers).filter(p => p.id !== msg.senderId && (!msg.targetIds || msg.targetIds.includes(p.id)) && p.conn && p.conn.open).length;
+                appendDebugLog(`중계 시작: '${msg.filename}' (${(msg.fileBuffer.byteLength / 1048576).toFixed(2)}MB) → ${n}명 (보낸이: ${msg.senderName})`);
+            }
             Object.values(liveSyncedPeers).forEach(p => {
                 if (p.id === msg.senderId) return;
                 if (msg.targetIds && !msg.targetIds.includes(p.id)) return;
@@ -2343,6 +2375,19 @@
             });
         }
 
+        // v3.32: 서버가 응답하지 않으면(학교 와이파이 밖 등) 한 번에 18초만 기다리고 정리한 뒤 재시도 흐름으로 넘김
+        function armSignalingTimeout(peer, label, onTimeout) {
+            const t = setTimeout(() => {
+                if (peer.destroyed || peer.open) return;
+                appendDebugLog(`${label}: 서버 응답 없음 ${SIGNALING_OPEN_TIMEOUT_MS / 1000}초 → 이번 접속 시도를 중단하고 다시 시도`);
+                onTimeout();
+            }, SIGNALING_OPEN_TIMEOUT_MS);
+            const clear = () => clearTimeout(t);
+            peer.on('open', clear);
+            peer.on('error', clear);
+            return clear;
+        }
+
         function joinAsGuest(roomCode, hostPeerId) {
             if (activeRoomId !== roomCode) return;
             isRoomHost = false;
@@ -2350,6 +2395,10 @@
             const tGuestNew = Date.now();
             const guestPeer = new Peer(peerOpts());
             peerNetwork = guestPeer;
+            armSignalingTimeout(guestPeer, '게스트 노드', () => {
+                if (peerNetwork !== guestPeer || !appState.isConnected) return;
+                scheduleReconnect('서버 접속 시간 초과(게스트 노드)');
+            });
 
             guestPeer.on('error', (gerr) => {
                 if (peerNetwork !== guestPeer) return;
@@ -2682,6 +2731,11 @@
 
             const tHostNew = Date.now();
             const hostCandidate = new Peer(hostPeerId, peerOpts());
+            armSignalingTimeout(hostCandidate, '방장 후보 노드', () => {
+                if (activeRoomId !== roomCode || peerNetwork === hostCandidate || !appState.isConnected) return;
+                try { hostCandidate.destroy(); } catch (e) {}
+                scheduleReconnect('서버 접속 시간 초과(방장 후보 노드)');
+            });
             hostCandidate.on('connection', (conn) => {
                 if (peerNetwork === hostCandidate) setupHostConnection(conn);
             });
@@ -3915,6 +3969,7 @@
                         const pc = pendingAcks[transferId]; if (pc) { clearTimeout(pc.timer); delete pendingAcks[transferId]; }
                         cancelled = true; break;
                     }
+                    appendDebugLog(`전송 시작: ${f.filename} (${(bytes / 1048576).toFixed(2)}MB) -> ${selectedPeers.length}명 (${isRoomHost ? '방장이 직접 전송' : '방장을 거쳐 전달'})`);
                     const used = sendPacketToTargets(packet, targetIds);
                     transferActiveConns = used;
                     if (used.length === 0) {
@@ -3934,7 +3989,8 @@
                         throw new Error('상대 기기로 데이터가 전달되지 않습니다(연결 끊김 의심)');
                     }
                     doneBytes += bytes;
-                    armAckTimer(transferId);
+                    armAckTimer(transferId, ackWaitMs(bytes, selectedPeers.length));
+                    appendDebugLog(`내 기기에서 내보내기 끝: ${f.filename} (${(bytes / 1048576).toFixed(2)}MB, ${selectedPeers.length}명 대상) · 수신 확인 대기 ${Math.round(ackWaitMs(bytes, selectedPeers.length) / 1000)}초`);
 
                     logTransfer({ dir: '송신', peer: receiverNames, kind: asText ? '메시지' : '파일', filename: f.filename, size: f.size, result: '전송됨', text: asText ? (f.content || '') : '', transferId });
                     addHistoryItem({
@@ -4768,7 +4824,7 @@
         }
 
         let toastTimer;
-        function showToast(message, type = 'success') {
+        function showToast(message, type = 'success', durationMs = 3200) {
             const toastBox = document.getElementById('toast-box');
             const toastMsg = document.getElementById('toast-message');
             const toastIcon = document.getElementById('toast-icon');
@@ -4784,7 +4840,7 @@
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => {
                 toastBox.classList.add('hidden');
-            }, 3200);
+            }, durationMs);
         }
 
         // 앱 초기화 실행
