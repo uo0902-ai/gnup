@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.33)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.33)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.33';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.34)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.34)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.34';
 -->
 <html lang="ko">
 <head>
@@ -425,6 +425,12 @@
                             <button onclick="closeDebugPanel()" class="text-rose-400 hover:underline">닫기</button>
                         </div>
                     </div>
+                    <!-- v3.33→v3.34: 로그를 파일로 저장 / 다른 앱(퀵쉐어 등)으로 공유 / 방 안에서 보낼 파일 목록에 추가 -->
+                    <div class="flex gap-1.5 font-sans">
+                        <button type="button" onclick="saveDiagLogFile()" class="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[11px] font-extrabold transition">파일로 저장</button>
+                        <button type="button" onclick="shareDiagLogFile()" class="flex-1 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 active:scale-95 text-white text-[11px] font-extrabold transition">공유(퀵쉐어 등)</button>
+                        <button type="button" onclick="addDiagLogToSendList()" class="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-[11px] font-extrabold transition">보낼 목록에 추가</button>
+                    </div>
                     <div id="debug-log-content" class="max-h-36 overflow-y-auto space-y-1 leading-relaxed"></div>
                     <button type="button" onclick="openSettingsModal()" id="btn-teacher-settings" class="hidden w-full mt-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-extrabold font-sans transition active:scale-95">교사 설정 (업데이트 확인 방식 · 서버)</button>
                     <button type="button" onclick="takeOverHostClick()" id="btn-take-host" class="hidden w-full mt-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold">방장 가져오기</button>
@@ -435,11 +441,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.33 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.34 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.33</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.34</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -783,7 +789,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.33';
+        const APP_VERSION = 'v3.34';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -1816,6 +1822,82 @@
             } else {
                 showToast('이 브라우저는 로그 복사를 지원하지 않습니다.', 'warning');
             }
+        }
+
+        // ---- v3.34: 로그를 txt 파일로 만들어 저장 / 공유 / 보낼 목록에 추가 ----
+        // 파일 맨 위에 앱 버전·기기·이름·방 코드·저장 시각을 붙여서, 여러 기기의 로그를 받아도 어느 기기 것인지 바로 알 수 있게 함
+        function buildDiagLogFile() {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const stamp = `${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            const who = String(appState.nickname || '').replace(/[\\/:*?"<>|\s]+/g, '') || '이름없음';
+            const name = `로그_${who}_${deviceId}_${stamp}.txt`;
+            const head = [
+                '계남중 파일업다운 진단 로그',
+                `앱 버전: ${APP_VERSION}`,
+                `기기: ${deviceId}`,
+                `이름: ${appState.nickname || '-'}`,
+                `방 코드: #${appState.roomCode || '-'}`,
+                `저장 시각: ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
+                `로그 줄 수: ${diagLines.length}`,
+                '----------------------------------------'
+            ];
+            const text = head.join('\n') + '\n' + diagLines.join('\n') + '\n';
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            return { name, blob, lines: diagLines.length };
+        }
+
+        async function saveDiagLogFile() {
+            appendDebugLog('로그를 파일로 저장 요청');
+            const f = buildDiagLogFile();
+            try {
+                if (IS_NATIVE) {
+                    const saved = await saveBlobNative(f.blob, f.name, 'downloads', 'text/plain');
+                    showToast(`'${saved.name || f.name}' 저장 완료! 내 파일 → 다운로드 → 계남중파일업다운 폴더에서 확인하세요.`);
+                    return;
+                }
+                const url = URL.createObjectURL(f.blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = f.name;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 60000);
+                showToast(`'${f.name}' 다운로드 완료! 브라우저의 '다운로드' 폴더에서 확인하세요.`);
+            } catch (e) {
+                appendDebugLog('로그 저장 오류: ' + errText(e));
+                showToast('로그 파일 저장 중 오류가 발생했습니다.', 'warning');
+            }
+        }
+
+        async function shareDiagLogFile() {
+            appendDebugLog('로그를 다른 앱으로 공유 요청');
+            const f = buildDiagLogFile();
+            try {
+                if (IS_NATIVE) {
+                    const saved = await saveBlobNative(f.blob, f.name, 'cache', 'text/plain');
+                    await getNativePlugin('Share').share({ title: f.name, dialogTitle: '로그 파일 공유', files: [saved.uri] });
+                    return;
+                }
+                const file = new File([f.blob], f.name, { type: 'text/plain' });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ title: f.name, files: [file] });
+                } else {
+                    await saveDiagLogFile();
+                }
+            } catch (e) {
+                if (e && e.name !== 'AbortError' && !/cancel/i.test(errText(e))) {
+                    appendDebugLog('로그 공유 오류: ' + errText(e));
+                    showToast('공유 창을 여는 중 문제가 발생했습니다.', 'warning');
+                }
+            }
+        }
+
+        // 방 안의 다른 기기(교사 기기 등)로 보낼 때: 보낼 파일 목록 맨 위에 넣어 둠 → 받을 기기를 고르고 [선택 파일 전송]
+        function addDiagLogToSendList() {
+            appendDebugLog('로그를 보낼 파일 목록에 추가 요청');
+            const f = buildDiagLogFile();
+            const file = new File([f.blob], f.name, { type: 'text/plain', lastModified: Date.now() });
+            addRealFilesToPicker([file]);
+            showToast(`'${f.name}'을(를) 보낼 파일 목록 맨 위에 넣었습니다. 받을 기기를 고르고 [선택 파일 전송]을 누르세요.`);
         }
 
         // ---- 조원 명단 관리 ----
