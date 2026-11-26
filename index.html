@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- 
   [앱 버전 업그레이드 체크리스트 - 새 버전 배포 시 아래 3곳을 모두 동일하게 수정할 것]
-  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.32)
-  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.32)
-  3. 스크립트 상단 상수 const APP_VERSION = 'v3.32';
+  1. 현재 HTML 최상단 주석 버전 표기 (현재: v3.33)
+  2. 하단 고정 푸터 텍스트 <span id="footer-version-text"> (현재: 앱버전 v3.33)
+  3. 스크립트 상단 상수 const APP_VERSION = 'v3.33';
 -->
 <html lang="ko">
 <head>
@@ -435,11 +435,11 @@
         </div>
 
         <!-- ========================================== -->
-        <!-- 최하단 고정 푸터: 앱버전 v3.32 | by.계남중YSE & 업데이트 확인 -->
+        <!-- 최하단 고정 푸터: 앱버전 v3.33 | by.계남중YSE & 업데이트 확인 -->
         <!-- ========================================== -->
         <footer class="bg-slate-900 text-slate-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-y-1.5 text-[11px] border-t border-slate-800 shrink-0 z-20">
             <div class="flex items-center gap-1.5 font-bold tracking-tight">
-                <span id="footer-version-text" class="text-white">앱버전 v3.32</span>
+                <span id="footer-version-text" class="text-white">앱버전 v3.33</span>
                 <span class="text-slate-600">|</span>
                 <span class="text-indigo-300">by.계남중YSE</span>
                 <span class="text-slate-600">|</span>
@@ -772,7 +772,7 @@
             </div>
         </div>
 
-        <div id="toast-box" class="hidden fixed sm:absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
+        <div id="toast-box" style="touch-action: pan-y;" class="hidden fixed sm:absolute top-4 left-4 right-4 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-2xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-xs font-semibold transition-all">
             <i id="toast-icon" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
             <span id="toast-message" class="flex-1 leading-snug">알림 메시지</span>
         </div>
@@ -783,7 +783,7 @@
         // ==========================================
         // 0. 앱 버전 관리 상수
         // ==========================================
-        const APP_VERSION = 'v3.32';
+        const APP_VERSION = 'v3.33';
         const SESSION_STORAGE_KEY = 'gyenam_webapp_session_v1';
         const SCREEN_LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 60분 (3,600,000ms)
         const LOCK_TIMESTAMP_KEY = 'gyenam_screen_locked_at';
@@ -801,9 +801,9 @@
         let headerTapCount = 0;
         let headerTapResetTimer = null;
 
-        // 진단 로그는 앱을 껐다 켜도 남도록 기기에 저장합니다 (최근 400줄)
+        // 진단 로그는 앱을 껐다 켜도 남도록 기기에 저장합니다 (최근 1500줄 · v3.33: 400줄이면 수십 대 접속 때 몇 분 만에 앞부분이 잘려서 늘림)
         const DIAG_LOG_KEY = 'gyenam_diag_log';
-        const DIAG_LOG_MAX = 400;
+        const DIAG_LOG_MAX = 1500;
         let diagLines = [];
         let diagSaveTimer = null;
         // 로그 저장은 교사 설정(제목 12번 → 교사 설정 → 로그 저장)을 켠 기기만 합니다. 꺼져 있으면 앱을 껐다 켤 때 로그가 지워집니다.
@@ -839,6 +839,7 @@
             const row = document.createElement('div');
             row.textContent = line;
             logBox.appendChild(row);
+            while (logBox.childElementCount > DIAG_LOG_MAX) logBox.removeChild(logBox.firstChild);   // v3.33: 화면 목록도 같은 줄 수까지만 유지
             logBox.scrollTop = logBox.scrollHeight;
         }
 
@@ -855,7 +856,7 @@
             if (!logBox) return;
             const first = logBox.firstChild;
             prevSessionLines.forEach(l => { const r = document.createElement('div'); r.textContent = l; logBox.insertBefore(r, first); });
-            if (prevSessionLines.length) appendDebugLog(`──── 앱 시작 ${APP_VERSION} (위쪽은 이전 실행 기록) ────`);
+            if (prevSessionLines.length) appendDebugLog(`──── 앱 시작 ${APP_VERSION} · 기기 ${deviceId} (위쪽은 이전 실행 기록) ────`);
         }
 
         let fiveTapOpenedPanel = false;
@@ -1011,7 +1012,7 @@
             appendDebugLog(`PeerJS 서버 변경 → ${serverLabel(getServerCfg())} (${why})`);
             updateServerBadge();
             if (appState.isConnected && !updateLocked) {
-                teardownRoomNetwork();   // 예약돼 있던 재접속 타이머도 여기서 취소됨
+                teardownRoomNetwork('서버 설정 변경');   // 예약돼 있던 재접속 타이머도 여기서 취소됨
                 connectAttempt = 0; doorWaitCount = 0; sigReconnectFails = 0;
                 setSyncBadge('서버 변경 중...');
                 setTimeout(() => { if (appState.isConnected) connectPeerRoomNetwork(appState.roomCode); }, 500 + Math.random() * 2500);
@@ -1222,7 +1223,7 @@
 
         function performGlobalReset(message) {
             try { broadcastPresence('PRESENCE_LEAVE'); } catch (e) {}
-            teardownRoomNetwork();
+            teardownRoomNetwork('전체 초기화');
             stopBackgroundService();
             appState.isConnected = false;
             liveSyncedPeers = {};
@@ -1276,7 +1277,7 @@
                     caches.keys().then(ks => ks.forEach(k => { if (k.indexOf('gyenam-') === 0) caches.delete(k); })).catch(() => {});
                 }
             } catch (e) {}
-            appendDebugLog(IS_NATIVE ? `앱(APK) 모드 ${APP_VERSION}` : `웹 모드 ${APP_VERSION}`);
+            appendDebugLog((IS_NATIVE ? `앱(APK) 모드 ${APP_VERSION}` : `웹 모드 ${APP_VERSION}`) + ` · 기기 ${deviceId}`);
         }
 
         function showUpdateAvailableBanner(text) {
@@ -1308,7 +1309,7 @@
             try {
                 if (appState.isConnected) {
                     broadcastPresence('PRESENCE_LEAVE');
-                    teardownRoomNetwork();
+                    teardownRoomNetwork('업데이트 필요로 사용 잠금');
                     stopBackgroundService();
                     appState.isConnected = false;
                     liveSyncedPeers = {};
@@ -1548,7 +1549,30 @@
             appendDebugLog(`환경: ${/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '모바일' : 'PC'} | online=${navigator.onLine} | 네트워크(${info})`);
         }
 
-        function watchIceState(conn, label, onDead) {
+        // v3.33: 연결 하나당 4~5줄씩 찍히던 'checking'·후보 유형 줄을 없애고, 연결이 성립했을 때 한 줄로 요약한다.
+        //  (방장 기기는 조원 수십 명이 한꺼번에 들어오면 이 줄만으로 로그가 가득 차서 앞부분이 잘렸음)
+        //  연결이 끝내 안 열리는 경우는 아래 iceSnapshot()이 시간 제한 때 내/상대 후보 주소와 후보쌍 상태를 남긴다.
+        function iceSnapshot(conn, tag) {
+            try {
+                const pc = conn && conn.peerConnection;
+                if (!pc || typeof pc.getStats !== 'function') return;
+                pc.getStats().then((rep) => {
+                    const loc = {}, rem = {}, pairs = [];
+                    rep.forEach((r) => {
+                        if (r.type === 'local-candidate') loc[r.id] = r;
+                        else if (r.type === 'remote-candidate') rem[r.id] = r;
+                        else if (r.type === 'candidate-pair') pairs.push(r);
+                    });
+                    const fmt = (c) => c ? `${c.candidateType || c.type || '?'} ${c.address || c.ip || '숨김'}` : '?';
+                    const st = {};
+                    pairs.forEach((p) => { st[p.state] = (st[p.state] || 0) + 1; });
+                    const sel = pairs.find((p) => p.nominated && p.state === 'succeeded') || pairs.find((p) => p.state === 'succeeded');
+                    appendDebugLog(`${tag} ICE 정보: 내 후보 [${Object.values(loc).map(fmt).join(', ') || '없음'}] · 상대 후보 [${Object.values(rem).map(fmt).join(', ') || '없음'}] · 후보쌍 ${JSON.stringify(st)}${sel ? ` · 선택 ${fmt(loc[sel.localCandidateId])} ↔ ${fmt(rem[sel.remoteCandidateId])}` : ''}`);
+                }).catch(() => {});
+            } catch (e) {}
+        }
+
+        function watchIceState(conn, label, onDead, quiet) {
             try {
                 const pc = conn && conn.peerConnection;
                 if (!pc) {
@@ -1556,9 +1580,19 @@
                     return;
                 }
                 const seenTypes = new Set();
+                const tIce0 = Date.now();
+                let iceReported = false;
                 pc.addEventListener('iceconnectionstatechange', () => {
                     const st = pc.iceConnectionState;
-                    appendDebugLog(`${label} ICE 상태: ${st}`);
+                    if (st === 'connected' || st === 'completed') {
+                        if (!iceReported) {
+                            iceReported = true;
+                            appendDebugLog(`${label} ICE 연결됨 ${Date.now() - tIce0}ms · 후보 ${[...seenTypes].join(',') || '?'}`);
+                            if (!quiet) iceSnapshot(conn, label);
+                        }
+                    } else if (st !== 'checking' && st !== 'new') {
+                        appendDebugLog(`${label} ICE 상태: ${st}${iceReported ? '' : ' (연결되기 전)'} · ${Math.round((Date.now() - tIce0) / 1000)}초째`);
+                    }
                     if (!onDead) return;
                     if (st === 'failed' || st === 'closed') {
                         onDead(st);
@@ -1572,10 +1606,7 @@
                     if (!ev.candidate) return;
                     const m = / typ (\w+)/.exec(ev.candidate.candidate || '');
                     const t = ev.candidate.type || (m ? m[1] : '');
-                    if (t && !seenTypes.has(t)) {
-                        seenTypes.add(t);
-                        appendDebugLog(`${label} 후보 유형: ${t} (srflx=STUN 성공, relay=중계, host=내부주소)`);
-                    }
+                    if (t && !seenTypes.has(t)) seenTypes.add(t);   // host=내부주소, srflx=STUN 성공, relay=중계 (줄은 연결됨/시간 제한 때 요약해서 남김)
                 });
             } catch (e) {
                 appendDebugLog(`${label}: ICE 감시 오류 ${e && e.message ? e.message : e}`);
@@ -1822,11 +1853,12 @@
                 }
             }
             const activeIds = new Set();
+            const newNames = [];
             members.forEach(m => {
                 if (!m || m.id === deviceId) return;
                 activeIds.add(m.id);
                 const prev = liveSyncedPeers[m.id];
-                if (!prev) appendDebugLog(`조원 명단 수신: ${m.name}`);
+                if (!prev) newNames.push(m.host ? `${m.name}(방장)` : m.name);
                 liveSyncedPeers[m.id] = {
                     id: m.id,
                     name: m.name,
@@ -1838,9 +1870,15 @@
                     conn: null
                 };
             });
+            // v3.33: 새로 보인 조원은 이름마다 한 줄이 아니라 한 줄로 묶어 남기고, 사라진 조원도 함께 남김
+            const goneNames = [];
             Object.keys(liveSyncedPeers).forEach(id => {
-                if (!activeIds.has(id)) delete liveSyncedPeers[id];
+                if (!activeIds.has(id)) { goneNames.push(liveSyncedPeers[id].name); delete liveSyncedPeers[id]; }
             });
+            const brief = (arr) => arr.length > 12 ? `${arr.slice(0, 12).join(', ')} 외 ${arr.length - 12}명` : arr.join(', ');
+            if (newNames.length || goneNames.length) {
+                appendDebugLog(`조원 명단 수신: ${newNames.length ? `+${newNames.length}명 [${brief(newNames)}]` : ''}${newNames.length && goneNames.length ? ' ' : ''}${goneNames.length ? `-${goneNames.length}명 [${brief(goneNames)}]` : ''} · 전체 ${activeIds.size + 1}명${info && info.epoch ? ` · 방장 번호 ${info.epoch}` : ''}`);
+            }
             renderPeers();
         }
 
@@ -1938,7 +1976,7 @@
                     } else if (conn && conn.open && myId) {
                         // 내가 더 높은 번호(또는 같은 번호에서 ID가 작음)이면, 알려 온 쪽이 내려오도록 되돌려 알림
                         try { conn.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: myId }); } catch (e) {}
-                        appendDebugLog('나보다 낮은 번호의 방장이 알려 와서, 내가 방장임을 되돌려 알림');
+                        appendDebugLog(`나보다 낮은 번호의 방장이 알려 와서, 내가 방장임을 되돌려 알림 · 상대 번호 ${msg.epoch}(ID ${msg.hostPeerId}) / 내 번호 ${roomEpoch}(ID ${myId})`);
                     }
                 }
             } else if (msg.type === 'FILE_TRANSFER') {
@@ -2187,7 +2225,9 @@
             }
         }
 
-        function teardownRoomNetwork() {
+        function teardownRoomNetwork(why) {
+            // v3.33: 내가 방장일 때 조원 연결을 한꺼번에 닫는 순간이 '방이 갈라지는' 시작점이라 사유와 함께 남김
+            if (hostConnList.length > 0) appendDebugLog(`방 연결 정리(${why || '사유 미기재'}): 내가 방장일 때 조원 연결 ${hostConnList.length}개 닫음`);
             stopHeartbeat();
             if (reconnectTimer) {
                 clearTimeout(reconnectTimer);
@@ -2238,7 +2278,7 @@
             }
             appendDebugLog(`${reason} → ${(delay / 1000).toFixed(1)}초 후 재시도 (${connectAttempt}번째)`);
             setSyncBadge('재연결 중...');
-            teardownRoomNetwork(); // 낡은 연결을 먼저 정리한 뒤 재시도 예약
+            teardownRoomNetwork(reason); // 낡은 연결을 먼저 정리한 뒤 재시도 예약
             reconnectTimer = setTimeout(() => {
                 reconnectTimer = null;
                 if (appState.isConnected) {
@@ -2247,12 +2287,12 @@
             }, delay);
         }
 
-        function handleHostConnGone(conn) {
+        function handleHostConnGone(conn, why) {
             hostConnList = hostConnList.filter(c => c !== conn);
             let changed = false;
             Object.values(liveSyncedPeers).forEach(p => {
                 if (p.conn === conn) {
-                    appendDebugLog(`조원 연결 종료: ${p.name}`);
+                    appendDebugLog(`조원 연결 종료: ${p.name}${why ? ` (${why})` : ''}`);
                     delete liveSyncedPeers[p.id];
                     changed = true;
                 }
@@ -2288,8 +2328,25 @@
             if (conn && conn.open) attach(); else if (conn) conn.on('open', attach);
         }
 
+        function shortId(id) { return id ? (/-host$/.test(String(id)) ? '정문ID' : String(id).slice(0, 8)) : '-'; }   // 정문 ID(gyenam-ms-room2-코드-host)는 앞 8자가 모두 같아 구분이 안 되므로 따로 표시
+        function connWho(conn) {
+            const m = (conn && conn.metadata) || {};
+            return `${m.nickname || '이름모름'}(${m.senderId || '기기모름'})`;
+        }
+
         function setupHostConnection(conn, skipData = false) {
-            appendDebugLog(`게스트 접속 요청 감지: ${conn.peer}`);
+            // v3.33: 누가 접속을 요청했는지(이름·기기)와 연결 시도 ID를 같이 남김 → 방장 로그만으로 '접속이 안 끝난 기기'를 알 수 있음
+            appendDebugLog(`게스트 접속 요청 감지: ${conn.peer} · ${connWho(conn)}${conn.open ? ' · 이미 열려 있음' : ''}`);
+            const tReq = Date.now();
+            if (!conn.open) {
+                conn.on('open', () => appendDebugLog(`접속 완료: ${connWho(conn)} · 요청 후 ${Date.now() - tReq}ms`));
+                // 15초가 지나도 안 열리면 그 기기가 어떤 상태인지(ICE·후보 주소)를 남김 (아침 로그에서 35건이 아무 기록 없이 사라졌음)
+                setTimeout(() => {
+                    if (conn.open || !hostConnList.includes(conn)) return;
+                    appendDebugLog(`접속 미완료 15초: ${connWho(conn)} · peer=${shortId(conn.peer)} · ICE=${conn.peerConnection ? conn.peerConnection.iceConnectionState : '없음'}`);
+                    iceSnapshot(conn, '방장←게스트');
+                }, 15000);
+            }
             hostConnList.push(conn);
             let rawOwner = null;
             watchRawActivity(conn, () => {
@@ -2297,13 +2354,13 @@
                 if (rawOwner) rawOwner.lastSeen = Date.now();
             });
             watchIceState(conn, '방장←게스트', (why) => {
-                appendDebugLog(`방장←게스트 연결 끊김 판정(${why}) → 정리`);
+                appendDebugLog(`방장←게스트 연결 끊김 판정(${why}) → 정리 · ${connWho(conn)}`);
                 try { conn.close(); } catch (e) {}
-                handleHostConnGone(conn);
-            });
+                handleHostConnGone(conn, `ICE ${why}`);
+            }, true);
             if (!skipData) conn.on('data', (data) => handleIncomingNetworkPayload(data, conn));
-            conn.on('close', () => handleHostConnGone(conn));
-            conn.on('error', () => handleHostConnGone(conn));
+            conn.on('close', () => handleHostConnGone(conn, 'close 이벤트'));
+            conn.on('error', () => handleHostConnGone(conn, 'error 이벤트'));
         }
 
         function startHostHeartbeat() {
@@ -2343,8 +2400,14 @@
             watchIceState(conn, '게스트→방장', (why) => {
                 if (guestHostConn === conn && succState === 'idle') handleHostLost(`방장과 연결 끊김 판정(${why}) → 방장 승격 재탐색`);
             });
+            const tBind = Date.now();
             const connectTimer = setTimeout(() => {
-                if (guestHostConn === conn && !conn.open) opts.onTimeout();
+                if (guestHostConn === conn && !conn.open) {
+                    // v3.33: 시간 안에 안 열린 이유를 좁힐 수 있게 ICE 상태와 내/상대 후보 주소를 남김
+                    appendDebugLog(`방장 연결이 ${Math.round((Date.now() - tBind) / 1000)}초 안에 안 열림 · 상대 peer=${shortId(conn.peer)} · ICE=${conn.peerConnection ? conn.peerConnection.iceConnectionState : '없음'} · 내 서버연결=${peerNetwork ? (peerNetwork.open ? '열림' : '아님') : '없음'}`);
+                    iceSnapshot(conn, '게스트→방장');
+                    opts.onTimeout();
+                }
             }, opts.timeoutMs || GUEST_CONNECT_TIMEOUT_MS);
             const onOpen = () => {
                 clearTimeout(connectTimer);
@@ -2355,7 +2418,7 @@
                 const wasFollow = succState === 'follow';
                 succState = 'idle';
                 clearTimeout(followTimer); followTimer = null; followTries = 0;
-                appendDebugLog(wasFollow ? `새 방장과 P2P 연결 완료(방장 번호 ${roomEpoch}) · 서버 새 접속 없음` : `방장(#${appState.roomCode})과 P2P 연결 완료`);
+                appendDebugLog((wasFollow ? `새 방장과 P2P 연결 완료(방장 번호 ${roomEpoch}) · 서버 새 접속 없음` : `방장(#${appState.roomCode})과 P2P 연결 완료`) + ` · 상대 peer=${shortId(conn.peer)} · 걸린 시간 ${Date.now() - tBind}ms`);
                 setSyncBadge('실시간 동기화');
                 broadcastPresence('PRESENCE_PING');
                 startGuestHeartbeat();
@@ -2371,7 +2434,9 @@
             });
             conn.on('close', () => {
                 clearTimeout(connectTimer);
-                if (guestHostConn === conn && succState === 'idle') handleHostLost('방장 연결 종료 → 방장 승격 재탐색');
+                // v3.33: close 이벤트가 온 순간의 ICE 상태·연결 유지 시간·방장 마지막 수신 시각을 같이 남김
+                const quietSec = lastHostMsgAt ? Math.round((Date.now() - lastHostMsgAt) / 1000) : -1;
+                if (guestHostConn === conn && succState === 'idle') handleHostLost(`방장 연결 종료(close 이벤트 · ICE=${conn.peerConnection ? conn.peerConnection.iceConnectionState : '없음'} · 연결 후 ${Math.round((Date.now() - tBind) / 1000)}초 · 방장 마지막 수신 ${quietSec}초 전 · 내 네트워크=${describeNetType()}/online=${navigator.onLine}) → 방장 승격 재탐색`);
             });
         }
 
@@ -2524,11 +2589,13 @@
                 pendingFollowers = pendingFollowers.filter(x => x !== item);
                 try { conn.close(); } catch (e) {}
             }, 30000);
+            // v3.33: 연결마다 한 줄씩 찍던 것을 첫 연결만 남기고, 총 개수는 승격/정리 때 한 줄로 남김
+            if (pendingFollowers.length === 0) appendDebugLog(`방장이 되기 전 접속 대기 연결 보관 시작: ${connWho(conn)}부터 (개수는 승격·정리 때 기록)`);
             pendingFollowers.push(item);
-            appendDebugLog(`방장이 되기 전 접속 대기 연결 보관: ${conn.peer}`);
         }
         function dropPendingFollowers() {
             const list = pendingFollowers;
+            if (list.length > 0) appendDebugLog(`접속 대기 연결 ${list.length}개를 닫음`);
             pendingFollowers = [];
             list.forEach(it => { clearTimeout(it.t); try { it.conn.close(); } catch (e) {} });
         }
@@ -2552,7 +2619,7 @@
                 if (q.isHost) { delete liveSyncedPeers[q.id]; return; }
                 q.conn = null; q.lastSeen = Date.now();
             });
-            appendDebugLog(`★ 내가 새 방장이 됨 (방장 번호 ${roomEpoch}) · 서버 새 접속 없이 승격`);
+            appendDebugLog(`★ 내가 새 방장이 됨 (방장 번호 ${roomEpoch}) · 서버 새 접속 없이 승격 · 내ID=${shortId(p.id)} 옛 방장ID=${shortId(oldHostId)} · 옛 방장 확인 ${PROMOTE_WAIT_MS / 1000}초 동안 응답 없음 · 인수한 접속 대기 연결 ${pendingFollowers.length}개`);
             const held = pendingFollowers; pendingFollowers = [];
             held.forEach(it => {
                 clearTimeout(it.t);
@@ -2584,7 +2651,7 @@
                     clearTimeout(claimTimer); claimTimer = null;
                     try {
                         c.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: p.id });
-                        appendDebugLog('옛 방장 자리에 다른 방장이 있어 방장 교체를 알림');
+                        appendDebugLog(`옛 방장 자리에 다른 방장이 있어 방장 교체를 알림 · 옛 방장 ID ${shortId(oldId)}가 연결에 응답함`);
                     } catch (e) {}
                     setTimeout(() => { try { c.close(); } catch (e) {} }, 1500);
                 });
@@ -2603,7 +2670,7 @@
                 c.on('data', (d) => handleIncomingNetworkPayload(d, c));
                 c.on('open', () => {
                     try { c.send({ type: 'HOST_CLAIM', senderId: deviceId, appVer: APP_VERSION, roomCode: appState.roomCode, epoch: roomEpoch, hostPeerId: p.id }); } catch (e) {}
-                    appendDebugLog('정문 ID 점유자에게 방장 교체를 알림');
+                    appendDebugLog(`정문 ID 점유자에게 방장 교체를 알림 · 정문 점유자 ID ${shortId(targetId)}`);
                     setTimeout(() => { try { c.close(); } catch (e) {} }, 1500);
                 });
                 setTimeout(() => { if (!c.open) { try { c.close(); } catch (e) {} } }, 9000);
@@ -2613,8 +2680,10 @@
         function stepDownTo(newHostId, epoch) {
             if (!appState.isConnected) return;
             const room = appState.roomCode;
-            appendDebugLog(`더 높은 방장 번호(${epoch}>${roomEpoch}) 확인 → 방장에서 내려와 새 방장에게 연결`);
-            teardownRoomNetwork();
+            // v3.33: 내려오는 근거(번호가 더 높음 / 번호가 같고 상대 ID가 작음)와 양쪽 ID, 끊게 될 조원 수를 같이 남김
+            const myIdNow = peerNetwork && peerNetwork.id ? String(peerNetwork.id) : '';
+            appendDebugLog(`더 높은 방장 번호(${epoch}>${roomEpoch}) 확인 → 방장에서 내려와 새 방장에게 연결 · 근거=${epoch > roomEpoch ? '상대 번호가 더 높음' : '번호가 같고 상대 ID가 더 작음'} · 내ID=${myIdNow || '-'} 상대ID=${newHostId || '-'} · 내 조원 연결 ${hostConnList.length}개가 끊김`);
+            teardownRoomNetwork('방장에서 내려옴');
             activeRoomId = room;
             roomEpoch = epoch;
             setSyncBadge('연결 탐색 중...');
@@ -2686,7 +2755,7 @@
             if (!appState.isConnected) return;
             if (awayMs >= HOST_SILENCE_MS) {
                 appendDebugLog(`백그라운드 ${Math.round(awayMs / 1000)}초 → 연결을 새로 구성`);
-                teardownRoomNetwork();
+                teardownRoomNetwork(`백그라운드 ${Math.round(awayMs / 1000)}초 뒤 복귀`);
                 connectAttempt = 0;
                 connectPeerRoomNetwork(appState.roomCode);
                 return;
@@ -2722,10 +2791,10 @@
             // v3.26: 처음부터 다시 구성(예전 방식) → 방장 번호는 새로 시작하되, 직접 방장이 되면 이전 번호+1 로 올림
             const prevEpoch = roomEpoch;
             roomEpoch = 0; roomHostPeerId = ''; deputyDeviceId = ''; deputyPeerId = '';
-            teardownRoomNetwork();
+            teardownRoomNetwork(`방 접속을 처음부터 다시(이전 방장 번호 ${prevEpoch})`);
             activeRoomId = roomCode;
             const hostPeerId = `${ROOM_ID_PREFIX}${roomCode}-host`;
-            appendDebugLog(`방 #${roomCode} 네트워크 탐색 시작...`);
+            appendDebugLog(`방 #${roomCode} 네트워크 탐색 시작... · 기기 ${deviceId} · 이름 ${appState.nickname} · ${APP_VERSION}`);
             logNetworkEnvironment();
             setSyncBadge('연결 탐색 중...');
 
@@ -2845,7 +2914,7 @@
                 if (appState.isConnected) {
                     broadcastPresence('PRESENCE_LEAVE');
                 }
-                teardownRoomNetwork();
+                teardownRoomNetwork('잠금화면 시간 초과 종료');
                 stopBackgroundService();
                 appState.isConnected = false;
                 liveSyncedPeers = {};
@@ -3059,7 +3128,7 @@
             try {
                 broadcastPresence('PRESENCE_LEAVE');
             } catch (e) {}
-            teardownRoomNetwork();
+            teardownRoomNetwork('사용 없음 자동 퇴장');
             stopBackgroundService();
             appState.isConnected = false;
             liveSyncedPeers = {};
@@ -3109,11 +3178,12 @@
             let line;
             if (isRoomHost) {
                 const open = hostConnList.filter(c => c && c.open).length;
-                line = `방장(번호 ${roomEpoch}) | 서버연결=${sig} | 열린 조원 연결=${open} | 명단=${Object.keys(liveSyncedPeers).length}명`;
+                line = `방장(번호 ${roomEpoch}) | 서버연결=${sig} | 열린 조원 연결=${open} | 명단=${Object.keys(liveSyncedPeers).length}명 | 내ID=${shortId(p && p.id)} 정문ID=${doorPeer && doorPeer.open ? '확보' : '없음'}`;
             } else {
                 const alive = !!(guestHostConn && guestHostConn.open);
                 const quiet = alive && lastHostMsgAt ? Math.round((Date.now() - lastHostMsgAt) / 1000) : -1;
-                line = `게스트(번호 ${roomEpoch}${deputyDeviceId === deviceId ? ', 부방장' : ''}) | 서버연결=${sig} | 방장연결=${alive ? '열림' : '없음'}${quiet >= 0 ? ` | 방장 무응답 ${quiet}초` : ''}`;
+                const hostEntry = Object.values(liveSyncedPeers).find(q => q.isHost);
+                line = `게스트(번호 ${roomEpoch}${deputyDeviceId === deviceId ? ', 부방장' : ''}) | 서버연결=${sig} | 방장연결=${alive ? '열림' : '없음'}${quiet >= 0 ? ` | 방장 무응답 ${quiet}초` : ''} | 내ID=${shortId(p && p.id)} 방장ID=${shortId(roomHostPeerId)} 방장=${hostEntry ? hostEntry.name : '?'} 명단=${Object.keys(liveSyncedPeers).length + 1}명`;
             }
             const vis = document.hidden ? '숨김' : '보임';
             const key = `${line.replace(/무응답 \d+초/, '')}|${vis}|${describeNetType()}|${navigator.onLine}`;
@@ -3462,7 +3532,7 @@
         function executeLeaveRoom() {
             closeLeaveConfirmModal();
             broadcastPresence('PRESENCE_LEAVE');
-            teardownRoomNetwork();
+            teardownRoomNetwork('방 나가기');
             resetSuccession();
             stopBackgroundService();
             appState.isConnected = false;
@@ -4835,7 +4905,9 @@
                 ? 'w-4 h-4 text-amber-400 shrink-0'
                 : 'w-4 h-4 text-emerald-400 shrink-0';
 
+            resetToastDrag(toastBox);
             toastBox.classList.remove('hidden');
+            positionToast(toastBox);
             lucide.createIcons();
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => {
@@ -4843,8 +4915,62 @@
             }, durationMs);
         }
 
+        // v3.33: 알림이 상단 버튼(방 나가기·이름/코드 변경)을 가려 누를 수 없던 문제 →
+        //  접속 화면의 상단 파란 헤더 바로 아래에 띄운다. (접속 전 화면에는 헤더가 없어 기존 위치 그대로)
+        function positionToast(toastBox) {
+            let top = 16;
+            try {
+                const hdr = document.querySelector('#main-screen:not(.hidden) > header');
+                if (hdr) {
+                    const hb = hdr.getBoundingClientRect().bottom;
+                    const base = (getComputedStyle(toastBox).position === 'absolute' && toastBox.offsetParent) ? toastBox.offsetParent.getBoundingClientRect().top : 0;
+                    top = Math.max(16, Math.round(hb - base + 8));
+                }
+            } catch (e) {}
+            toastBox.style.top = top + 'px';
+        }
+        function resetToastDrag(toastBox) {
+            toastBox.style.transition = '';
+            toastBox.style.transform = '';
+            toastBox.style.opacity = '';
+        }
+        // v3.33: 알림을 손가락으로 대고 옆으로 밀면(60px 이상) 바로 사라진다. 조금만 밀면 제자리로 돌아온다.
+        function initToastSwipe() {
+            const box = document.getElementById('toast-box');
+            if (!box) return;
+            let sx = 0, dx = 0, dragging = false;
+            box.addEventListener('pointerdown', (e) => {
+                sx = e.clientX; dx = 0; dragging = true;
+                box.style.transition = 'none';
+                try { box.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            box.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                dx = e.clientX - sx;
+                box.style.transform = `translateX(${dx}px)`;
+                box.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220));
+            });
+            const end = () => {
+                if (!dragging) return;
+                dragging = false;
+                box.style.transition = 'transform .18s ease, opacity .18s ease';
+                if (Math.abs(dx) > 60) {
+                    box.style.transform = `translateX(${dx > 0 ? '110%' : '-110%'})`;
+                    box.style.opacity = '0';
+                    clearTimeout(toastTimer);
+                    setTimeout(() => { box.classList.add('hidden'); resetToastDrag(box); }, 190);
+                } else {
+                    box.style.transform = '';
+                    box.style.opacity = '';
+                }
+            };
+            box.addEventListener('pointerup', end);
+            box.addEventListener('pointercancel', end);
+        }
+
         // 앱 초기화 실행
         window.addEventListener('DOMContentLoaded', () => {
+            initToastSwipe();
             placeSendSection();
             try {
                 const mqLand = window.matchMedia(LANDSCAPE_QUERY);
